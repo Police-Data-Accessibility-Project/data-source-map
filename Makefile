@@ -2,7 +2,7 @@ venv:
 	virtualenv venv; \
 	. venv/bin/activate; \
 	pip install -r requirements.txt;
-	export FLASK_APP=app
+	echo "export FLASK_APP=app" >> venv/bin/activate
 
 db:
 	psql -c "DROP DATABASE pdap_dataset_catalog"
