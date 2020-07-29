@@ -16,8 +16,13 @@ Ping someone in Slack if you want to chat!
 
 ## Installation
 
+### Python libraries
 Install virtualenv (https://virtualenv.pypa.io/en/stable/installation.html) if you don't have it. Then, run `make venv` then `source venv/bin/activate` from the root directory, and you should be set.
 
+### Postgresql
+Mac (https://www.postgresqltutorial.com/install-postgresql-macos/)
+Linux (https://www.postgresqltutorial.com/install-postgresql-linux/)
+Windows (https://www.postgresqltutorial.com/install-postgresql/)
 ## Task items
 
 Todos:
