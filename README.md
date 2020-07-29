@@ -14,6 +14,10 @@ Master should reflect the current, stable MVP.
 
 Ping someone in Slack if you want to chat!
 
+## Installation
+
+Install virtualenv (https://virtualenv.pypa.io/en/stable/installation.html) if you don't have it. Then, run `make venv` then `source venv/bin/activate` from the root directory, and you should be set.
+
 ## Task items
 
 Todos:
