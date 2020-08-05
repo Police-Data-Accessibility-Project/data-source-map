@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='leaflet.css') }}"/>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css"/>
+    <link rel="stylesheet" href="{{ url_for('static', filename='leaflet.awesome-markers.css') }}"/>
+    <link rel="stylesheet" href="{{ url_for('static', filename='leaflet-sidebar.css') }}"/>
+
+    <style>
+        body {
+            padding: 0;
+            margin: 0;
+        }
+        html, body, #map {
+            height: 100%;
+            width: 100%;
+        }
+        #sidebar-content, #sidebar-title {
+            word-break: break-word;
+            margin-right: 40px;
+        }
+        .info { width: 600px; padding: 6px 8px; font: 14px/16px Arial, Helvetica, sans-serif; background: white; background: rgba(255,255,255,0.8); box-shadow: 0 0 15px rgba(0,0,0,0.2); border-radius: 5px; } .info h4 { margin: 0 0 5px; color: #777; }
+
+    </style>
+</head>
+<body>
+    
+    <div id="map"></div>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js" type="text/javascript"></script>
+    <script type="text/javascript" src="{{ url_for('static', filename='polys.js') }}"></script>
+    <script src="{{ url_for('static', filename='leaflet.js') }}"></script>
+    <script src="{{ url_for('static', filename='leaflet-sidebar.js') }}"></script>
+    <script src="{{ url_for('static', filename='leaflet.awesome-markers.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='tabletop.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='leaflet-gsheets.js') }}"></script>
+</body>
+</html>
