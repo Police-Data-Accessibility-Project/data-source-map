@@ -1,9 +1,11 @@
 // google sheet data
-var googleSheet
+var data
 
 function getSheet() {
-	$.getJSON( "https://sheets.googleapis.com/v4/spreadsheets/1BVG0By0wuB2eE93NjYIkWDaHsfVrsPc5wOSNw8-yp34/values/Counties to Scrape?key=AIzaSyAQGuzh7Nnn3RhxiMyoLrxwDGln9wh9MCg", function(data) {
-	googleSheet = data;
+    var gsheetsUrl = "https://sheets.googleapis.com/v4/spreadsheets/1BVG0By0wuB2eE93NjYIkWDaHsfVrsPc5wOSNw8-yp34/values/Counties to Scrape?key=AIzaSyAQGuzh7Nnn3RhxiMyoLrxwDGln9wh9MCg";
+    var dataUrl = "data";
+	$.getJSON(dataUrl , function(resp) {
+	data = resp;
 	init();
 }).fail(function () {
 	console.log("Failed to get google sheet.");
@@ -16,7 +18,7 @@ function init() {
 function loadedStyle(i){
 	return {
 		weight: 0.5,
-		fillColor: getColor(googleSheet.values[i].length),
+		fillColor: getColor(data.values[i][4].length),
 		color: "#666",
 		fillOpacity: 0.7
 	}
@@ -35,7 +37,7 @@ function unloadedStyle(){
 	function highlightStyle(i){
 		return {
 			weight: 2,
-			fillColor: getColor(googleSheet.values[i].length),
+			fillColor: getColor(data.values[i][4].length),
 			color: "#000",
 			fillOpacity: 0.7
 		}
@@ -44,7 +46,7 @@ function unloadedStyle(){
 	function clickStyle(i){
 		return {
 			weight: 0.5,
-			fillColor: getColor(googleSheet.values[i].length),
+			fillColor: getColor(data.values[i][4].length),
 			color: "#666",
 			fillOpacity: 0.7
 		}
@@ -62,16 +64,17 @@ function unloadedStyle(){
 	}
 
 // Initialize all feature styles here
+    function isCounty(value, feature) {
+        return (value[0] == feature.properties.STATE && value[1] == feature.properties.NAME + " County") ||
+				(value[0] == feature.properties.STATE && value[1] == feature.properties.NAME + " Parish") ||
+				(value[0] == feature.properties.STATE && value[1] == feature.properties.NAME + " Borough") ||
+				(value[0] == feature.properties.STATE && value[1] == feature.properties.NAME + " Census Area")
+    }
 	function style(feature) {
-		for (i = 0; i < googleSheet.values.length; i++) {
-			if(
-				(googleSheet.values[i][0] == feature.properties.STATE && googleSheet.values[i][1] == feature.properties.NAME + " County") ||
-				(googleSheet.values[i][0] == feature.properties.STATE && googleSheet.values[i][1] == feature.properties.NAME + " Parish") ||
-				(googleSheet.values[i][0] == feature.properties.STATE && googleSheet.values[i][1] == feature.properties.NAME + " Borough") ||
-				(googleSheet.values[i][0] == feature.properties.STATE && googleSheet.values[i][1] == feature.properties.NAME + " Census Area")
-				){
+		for (i = 0; i < data.values.length; i++) {
+			if(isCounty(data.values[i], feature)){
 				return loadedStyle(i);
-				info.update(googleSheet.values[i]);
+				info.update(data.values[i]);
 				}
 		  }
 		return unloadedStyle();
@@ -115,15 +118,10 @@ function unloadedStyle(){
 			layer.bringToFront();
 		}
 
-	for (i = 0; i < googleSheet.values.length; i++) {
-		if(
-			(googleSheet.values[i][0] == layer.feature.properties.STATE && googleSheet.values[i][1] == layer.feature.properties.NAME + " County") ||
-			(googleSheet.values[i][0] == layer.feature.properties.STATE && googleSheet.values[i][1] == layer.feature.properties.NAME + " Parish") ||
-			(googleSheet.values[i][0] == layer.feature.properties.STATE && googleSheet.values[i][1] == layer.feature.properties.NAME + " Borough") ||
-			(googleSheet.values[i][0] == layer.feature.properties.STATE && googleSheet.values[i][1] == layer.feature.properties.NAME + " Census Area")
-			){
+	for (i = 0; i < data.values.length; i++) {
+		if(isCounty(data.values[i], layer.feature)){
 			layer.setStyle(highlightStyle(i));
-			info.update(googleSheet.values[i]);
+			info.update(data.values[i]);
 		}
 	  }
 
@@ -133,13 +131,8 @@ function unloadedStyle(){
 	function clickFeature(e) {
 		var layer = e.target;
 
-		for (i = 0; i < googleSheet.values.length; i++) {
-			if(
-				(googleSheet.values[i][0] == layer.feature.properties.STATE && googleSheet.values[i][1] == layer.feature.properties.NAME + " County") ||
-				(googleSheet.values[i][0] == layer.feature.properties.STATE && googleSheet.values[i][1] == layer.feature.properties.NAME + " Parish") ||
-				(googleSheet.values[i][0] == layer.feature.properties.STATE && googleSheet.values[i][1] == layer.feature.properties.NAME + " Borough") ||
-				(googleSheet.values[i][0] == layer.feature.properties.STATE && googleSheet.values[i][1] == layer.feature.properties.NAME + " Census Area")
-				){
+		for (i = 0; i < data.values.length; i++) {
+			if(isCounty(data.values[i], layer.feature)){
 				layer.setStyle(clickStyle(i));
 			}
 		  }
