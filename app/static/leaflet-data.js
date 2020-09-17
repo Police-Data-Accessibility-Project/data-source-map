@@ -43,10 +43,10 @@ function unloadedStyle(){
 		}
 	}
 
-	function clickStyle(i){
+	function clickStyle(website){
 		return {
 			weight: 0.5,
-			fillColor: getColor(data.values[i][4].length),
+			fillColor: getColor(website.length),
 			color: "#666",
 			fillOpacity: 0.7
 		}
@@ -89,15 +89,19 @@ function unloadedStyle(){
 		return this._div;
 	};
 
-
 	info.update = function (props) {
 		if(typeof(props) !== "undefined"){
 			output = '<b> State</b>: ' + props[0] + '<br>' +
 					 '<b> County</b>: ' + props[1] + '<br>' +
 					 '<b> Agency</b>: ' + props[2] + '<br>' +
-					 '<b> Scraper</b>: ' + props[3] + '<br>' +
-					 '<b> Website</b>: ' + props[4] + '<br>' +
-					 '<b> Courts Website</b>: ' + props[5] + '<br>' +
+					 '<b> Scraper</b>: ' + props[3] + '<br>'+
+                     '<b>Website</b>: ';
+            var urls = props[4].split(',');
+           for (var i=0; i < urls.length; i++){ 
+               var url = urls[i];
+               output += '<a href="'+url+'" target="_blank">'+url+'</a>';
+           }
+           output += '<br><b> Courts Website</b>: ' + props[5] + '<br>' +
 					 '<b> What Data Exists</b>: ' + props[6] + '<br>' +
 					 '<b> Code</b>: ' + props[7] + '<br>' +
 					 '<b> FOIA Required</b>: ' + props[8] + '<br>'
@@ -110,49 +114,75 @@ function unloadedStyle(){
 
 	info.addTo(map);
 
-
+    var clicked = false;
+    var clickedCounty = -1;
 	function highlightFeature(e) {
-	var layer = e.target;
+        var layer = e.target;
 
-	if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
-			layer.bringToFront();
-		}
+        if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                layer.bringToFront();
+            }
 
-	for (i = 0; i < data.values.length; i++) {
-		if(isCounty(data.values[i], layer.feature)){
-			layer.setStyle(highlightStyle(i));
-			info.update(data.values[i]);
-		}
-	  }
+        for (i = 0; i < data.values.length; i++) {
+            if(isCounty(data.values[i], layer.feature)){
+                if (!clicked) {
+                    layer.setStyle(highlightStyle(i));
+                    info.update(data.values[i]);
+                    return i;
+                }
+            }
+          }
 
 	}
-
-
-	function clickFeature(e) {
+    function unclick(){
+        data.values[clickedCounty].layer.setStyle(clickStyle(data.values[clickedCounty][4]));
+        clicked = false;
+    }
+    function unhighlightFeature(e) {
 		var layer = e.target;
-
-		for (i = 0; i < data.values.length; i++) {
-			if(isCounty(data.values[i], layer.feature)){
-				layer.setStyle(clickStyle(i));
-			}
-		  }
+        layer.setStyle(clickStyle(data.values[layer.idx][4]));
+        if (clicked) {
+            unclick(); 
+        }
 	}
+
+    function clickFeature(e) {
+       if (!clicked) {
+           clickedCounty = highlightFeature(e);
+           clicked = true;
+       } else{
+           unclick();
+       }
+    }
 
 	function resetHighlight(e) {
-		clickFeature(e);
-		info.update()
+        if (!clicked) {
+            unhighlightFeature(e);
+            info.update();
+        }
 	}
 
 
 	function onEachFeature(feature, layer) {
+        for (i = 0; i < data.values.length; i++) {
+            if (isCounty(data.values[i], layer.feature)) {
+                data.values[i].layer = layer;
+                layer.idx = i;
+            }
+        }
 		layer.on({
 			mouseover: highlightFeature,
 			mouseout: resetHighlight,
-			click: clickFeature
+			click: clickFeature,
 		});
 		layer._leaflet_id = feature.id;
 	}
 
+    $(document).on('keydown', function(e) {
+        if (e.key == "Escape") {
+            unclick();
+        }
+    })
 
 	geojson = L.geoJson(polygonData, {
 		style: style,
@@ -179,3 +209,5 @@ var basemap = L.tileLayer(
   }
 );
 basemap.addTo(map);
+
+
