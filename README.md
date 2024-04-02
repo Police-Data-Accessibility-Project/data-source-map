@@ -1,7 +1,10 @@
-# Vue 3 + Vite
+# PDAP Data Source Map POC
 
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+This is a `vue` project to demonstrate a map of data sources.
 
-## Recommended IDE Setup
+To run this locally, you will need the following env vars set in a local `.env` file:
 
-- [VS Code](https://code.visualstudio.com/) + [Vue - Official](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (previously Volar) and disable Vetur
+`VITE_MAPBOX_TOKEN=<token>`
+`VITE_POSITION_STACK_TOKEN=<token>`
+
+Please reach out in Discord if you need values for these tokens.
