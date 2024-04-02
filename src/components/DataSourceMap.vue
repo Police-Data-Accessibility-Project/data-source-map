@@ -26,7 +26,20 @@ onMounted(async () => {
 	// Get map center
 	const userIp = await getUserIp();
 	const userLocation = await geocodeReverse(userIp);
-	const mapCenter = userLocation ?? DEFAULT_COORDINATES;
+
+	let coordinates = {
+		latitude: userLocation?.latitude,
+		longitude: userLocation?.longitude,
+	};
+
+	if (window.navigator.getCurrentPosition) {
+		window.navigator.getCurrentPosition((pos) => {
+			coordinates.longitude = pos.coords.longitude;
+			coordinates.latitude = pos.coords.latitude;
+		});
+	}
+
+	const mapCenter = coordinates ?? DEFAULT_COORDINATES;
 
 	// Render map
 	mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
@@ -41,14 +54,13 @@ onMounted(async () => {
 		// ],
 	});
 	const nav = new mapboxgl.NavigationControl();
-	dataSourceMap.addControl(nav, 'top-right');
 	const geolocate = new mapboxgl.GeolocateControl({
 		positionOptions: {
 			enableHighAccuracy: true,
 		},
 		trackUserLocation: true,
 	});
-
+	dataSourceMap.addControl(nav, 'top-right');
 	dataSourceMap.addControl(geolocate, 'top-right');
 
 	// Populate map with data sources
@@ -61,11 +73,17 @@ onMounted(async () => {
 	const pins = await Promise.all(
 		sourcesFiltered
 			.slice(0, 25) // Only fetch the first twenty-five results, this is just for testing
-			.map((source) => geocodeForward(source.agency_name)),
+			.map((source) =>
+				geocodeForward(
+					source.agency_name,
+					`${source.municipality} ${source.state_iso}`,
+				),
+			),
 	);
 	//#endregion testing code
 
 	pins.forEach((pin, _, self) => {
+		if (!pin) return;
 		// create the popup
 		const popup = new mapboxgl.Popup({ offset: 25 }).setText(
 			sourcesFiltered[self.indexOf(pin)].agency_name,
@@ -76,8 +94,6 @@ onMounted(async () => {
 			.setPopup(popup)
 			.addTo(dataSourceMap);
 	});
-
-	console.debug({ sourcesFiltered, pins, userLocation });
 });
 
 async function getUserIp() {
@@ -87,10 +103,11 @@ async function getUserIp() {
 		.catch((e) => console.error(e)); // Error does not need handling. Fall back to Pittsburgh as default location.
 }
 
-async function geocodeForward(query) {
+async function geocodeForward(query, region) {
 	const params = {
 		access_key: import.meta.env.VITE_POSITION_STACK_TOKEN,
 		query,
+		region,
 	};
 
 	return await axios
