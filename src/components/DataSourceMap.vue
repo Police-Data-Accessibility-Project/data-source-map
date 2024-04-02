@@ -30,7 +30,7 @@ onMounted(async () => {
 
 	// Render map
 	mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
-	new mapboxgl.Map({
+	const dataSourceMap = new mapboxgl.Map({
 		container: 'mapboxContainer',
 		style: 'mapbox://styles/mapbox/streets-v11',
 		center: [mapCenter.longitude, mapCenter.latitude],
@@ -40,18 +40,44 @@ onMounted(async () => {
 		// 	[104.1, 1.4754753],
 		// ],
 	});
+	const nav = new mapboxgl.NavigationControl();
+	dataSourceMap.addControl(nav, 'top-right');
+	const geolocate = new mapboxgl.GeolocateControl({
+		positionOptions: {
+			enableHighAccuracy: true,
+		},
+		trackUserLocation: true,
+	});
+
+	dataSourceMap.addControl(geolocate, 'top-right');
 
 	// Populate map with data sources
-	// const attempt = await geocodeForward('Asheville Police Department - NC');
 	const dataSources = await getDataSourceLocationData();
-	const pinData = dataSources
-		.map((source) => ({
-			query: source?.agency_name,
-			country: 'US',
-			region: source?.state_iso,
-		}))
-		.slice(0, 1);
-	// const pins = await geocodeForwardAsBatch(pinData);
+
+	//#region testing code, lots of filtering going on here to keep from pinging API with 1300+ requests
+	const sourcesFiltered = dataSources.filter(
+		(source) => source.state_iso === userLocation.region_code,
+	);
+	const pins = await Promise.all(
+		sourcesFiltered
+			.slice(0, 25) // Only fetch the first twenty-five results, this is just for testing
+			.map((source) => geocodeForward(source.agency_name)),
+	);
+	//#endregion testing code
+
+	pins.forEach((pin, _, self) => {
+		// create the popup
+		const popup = new mapboxgl.Popup({ offset: 25 }).setText(
+			sourcesFiltered[self.indexOf(pin)].agency_name,
+		);
+
+		new mapboxgl.Marker()
+			.setLngLat([pin.longitude, pin.latitude])
+			.setPopup(popup)
+			.addTo(dataSourceMap);
+	});
+
+	console.debug({ sourcesFiltered, pins, userLocation });
 });
 
 async function getUserIp() {
@@ -61,19 +87,15 @@ async function getUserIp() {
 		.catch((e) => console.error(e)); // Error does not need handling. Fall back to Pittsburgh as default location.
 }
 
-// TODO: fix this...
-async function geocodeForwardAsBatch(batch) {
-	// const params = {
-	// 	access_key: import.meta.env.VITE_POSITION_STACK_TOKEN,
-	// };
+async function geocodeForward(query) {
+	const params = {
+		access_key: import.meta.env.VITE_POSITION_STACK_TOKEN,
+		query,
+	};
 
 	return await axios
-		.get(
-			`${ENDPOINTS.GEOCODE_FORWARD}?access_key=${import.meta.env.VITE_POSITION_STACK_TOKEN}`,
-			{ batch },
-			// { params },
-		)
-		.then((resp) => resp.data.data)
+		.get(ENDPOINTS.GEOCODE_FORWARD, { params })
+		.then((resp) => resp.data.data[0])
 		.catch((e) => (error.value = e));
 }
 
@@ -97,9 +119,19 @@ async function getDataSourceLocationData() {
 }
 </script>
 
-<style scoped>
+<style>
 .mapbox-container {
 	height: 100%;
 	width: 100%;
+}
+
+.mapboxgl-popup-content {
+	background-color: #fff;
+	color: #000;
+	@apply px-4;
+}
+
+.mapboxgl-popup-close-button {
+	@apply h-4 w-4 text-lg;
 }
 </style>
