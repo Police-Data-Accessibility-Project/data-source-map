@@ -80,7 +80,7 @@ onMounted(async () => {
 	const dataSources = await getDataSourceLocationData();
 
 	dataSources.forEach((source) => {
-		if (!source || !(source.lat || source.lng)) return; // TODO: get from object once API fixed
+		if (!source || !(source.lat || source.lng)) return;
 
 		const markerElement = document.createElement('i');
 		markerElement.classList = 'fa fa-map-marker';
