@@ -8,10 +8,10 @@ import axios from 'axios';
 import mapboxgl from 'mapbox-gl';
 
 // Constants
-// const PDAP_DATA_SOURCE_SEARCH =
-// 	'https://data-sources.pdap.io/api/search-tokens?endpoint=data-sources-map';
 const PDAP_DATA_SOURCE_SEARCH =
-	'http://localhost:5000/search-tokens?endpoint=data-sources-map';
+	'https://data-sources.pdap.io/api/search-tokens?endpoint=data-sources-map';
+// const PDAP_DATA_SOURCE_SEARCH =
+// 	'http://localhost:5000/search-tokens?endpoint=data-sources-map';
 
 /**
  * Pittsburgh city center
