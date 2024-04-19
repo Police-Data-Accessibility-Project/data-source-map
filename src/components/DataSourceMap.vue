@@ -11,13 +11,13 @@
 			<div
 				v-for="county of sourcesInMapBoundsSidebarRenderOrderByCounty"
 				:key="county"
-				class="grid grid-cols-[repeat(auto-fill,_minmax(150px,_200px))] grid-rows-[auto,_1fr] min-w-[max-content] gap:2 md:block md:w-full md:mt-4"
+				class="grid grid-cols-[repeat(auto-fill,_minmax(150px,_max-content))] grid-rows-[auto,_1fr] min-w-[max-content] gap-2 md:min-w-[unset] md:block md:w-full md:mt-4"
 			>
-				<h3 class="row-span-1 col-span-12 text-neutral-950">
+				<h3 class="row-span-1 col-start-1 col-end-[-1] text-neutral-950">
 					{{ county }} County
 				</h3>
 				<a
-					v-for="[agency, data] of Object.entries(
+					v-for="([agency, data], index) of Object.entries(
 						sourcesInMapBoundsByCountyThenAgency[county],
 					)"
 					:key="agency"
@@ -25,6 +25,7 @@
 					:href="`https://data-sources.pdap.io/search/all/${encodeURI(data[0]?.municipality ?? data[0]?.county_name?.[0] ?? agency.split(' ')[0])}`"
 					target="_blank"
 					rel="noreferrer"
+					:style="{ gridColumnStart: index + 1, gridColumnEnd: index + 2 }"
 				>
 					<span class="block">
 						{{ agency }}
