@@ -35,9 +35,11 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watchEffect } from 'vue';
+import { onMounted, ref } from 'vue';
 import axios from 'axios';
 import mapboxgl from 'mapbox-gl';
+
+import recordTypesToDisplay from '../util/recordTypesToDisplay';
 
 // Constants
 const PDAP_DATA_SOURCE_SEARCH =
@@ -60,8 +62,6 @@ const isZooming = ref(false);
 const sourcesInMapBounds = ref([]);
 const sourcesInMapBoundsByCountyThenAgency = ref([]);
 const sourcesInMapBoundsSidebarRenderOrderByCounty = ref([]);
-
-watchEffect(() => {});
 
 onMounted(async () => {
 	const prefersDarkTheme = window.matchMedia(
@@ -107,7 +107,9 @@ onMounted(async () => {
 	dataSourceMap.addControl(geolocate, 'top-right');
 
 	// Populate map with data sources
-	dataSources.value = await getDataSourceLocationData();
+	dataSources.value = await getDataSourceLocationData().then((data) =>
+		data.filter((source) => recordTypesToDisplay.has(source.record_type)),
+	);
 
 	dataSources.value.forEach((source) => {
 		if (!source || !(source.lat || source.lng)) return;
@@ -224,7 +226,7 @@ function getSideBarRenderDataFormatted(dataSourceMap) {
  * Calculates distance with Haversine formula:
  * https://en.wikipedia.org/wiki/Haversine_formula
  *
- * @param {*} param0
+ * @param {Record<'first' | 'second', [number, number]>} args two points, first and second, each tuple should be arranged as follows: [longitude, latitude]
  */
 function distanceBetween({ first: [lon1, lat1], second: [lon2, lat2] }) {
 	const r = 6371; // km
