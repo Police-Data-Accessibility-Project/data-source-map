@@ -14,7 +14,8 @@
 				class="grid grid-cols-[repeat(auto-fill,_minmax(150px,_max-content))] grid-rows-[auto,_1fr] min-w-[max-content] gap-2 md:min-w-[unset] md:block md:w-full md:mt-4"
 			>
 				<h3 class="row-span-1 col-start-1 col-end-[-1] text-neutral-950">
-					{{ county }} County
+					{{ county }}
+					{{ getStateFromCounty(county) === 'LA' ? 'Parish' : 'County' }}
 				</h3>
 				<a
 					v-for="([agency, data], index) of Object.entries(
@@ -265,6 +266,12 @@ function distanceBetween({ first: [lon1, lat1], second: [lon2, lat2] }) {
  */
 function pluralize(word, count, suffix = 's') {
 	return count === 1 ? word : `${word}${suffix}`;
+}
+
+function getStateFromCounty(county) {
+	return Object.entries(
+		sourcesInMapBoundsByCountyThenAgency.value[county],
+	)[0][1][0].state_iso;
 }
 
 async function getDataSourceLocationData() {
