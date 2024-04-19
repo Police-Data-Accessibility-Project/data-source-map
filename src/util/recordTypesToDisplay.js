@@ -1,3 +1,6 @@
+/**
+ * Record types to display (matches data shape of quick search results in data-sources)
+ */
 export default new Set([
 	'Complaints & Misconduct',
 	'Daily Activity Logs',

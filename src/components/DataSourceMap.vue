@@ -1,22 +1,27 @@
 <template>
 	<main class="h-[calc(100vh-80px)] w-full relative">
+		<!-- Map -->
 		<div id="mapboxContainer" class="h-full w-full" />
+
+		<!-- Sidebar for list view of data sources -->
 		<aside
 			v-if="Object.keys(sourcesInMapBoundsByCountyThenAgency).length > 0"
-			class="absolute border-neutral-950 border-[1px] border-solid right-6 bottom-6 text-neutral-950 text-sm py-4 px-1 bg-neutral-200 bg-opacity-85 max-h-[75%] max-w-[25%] overflow-y-scroll"
+			class="absolute border-neutral-950 border-[1px] border-solid left-[5%] bottom-6 text-neutral-950 text-sm py-4 px-1 overflow-y-scroll bg-neutral-200 bg-opacity-85 max-w-[90%] my-o mx-auto inline-flex gap-4 md:block md:max-h-[75%] md:max-w-[25%] md:overflow-y-scroll md:right-6 md:left-[unset]"
 		>
 			<div
 				v-for="county of sourcesInMapBoundsSidebarRenderOrderByCounty"
 				:key="county"
-				class="mt-4 w-full"
+				class="grid grid-cols-[repeat(auto-fill,_minmax(150px,_200px))] grid-rows-[auto,_1fr] min-w-[max-content] gap:2 md:block md:w-full md:mt-4"
 			>
-				<h3>{{ county }} County</h3>
+				<h3 class="row-span-1 col-span-12 text-neutral-950">
+					{{ county }} County
+				</h3>
 				<a
 					v-for="[agency, data] of Object.entries(
 						sourcesInMapBoundsByCountyThenAgency[county],
 					)"
 					:key="agency"
-					class="pdap-button-tertiary border-neutral-950 border-[1px] border-solid font-normal text-sm text-left mb-2 p-2 w-full max-w-[unset]"
+					class="pdap-button-tertiary border-neutral-950 col-span-1 border-[1px] border-solid font-normal text-sm text-left mb-2 p-2 md:w-full md:max-w-[unset]"
 					:href="`https://data-sources.pdap.io/search/all/${encodeURI(data[0]?.municipality ?? data[0]?.county_name?.[0] ?? agency.split(' ')[0])}`"
 					target="_blank"
 					rel="noreferrer"
@@ -53,20 +58,24 @@ const DEFAULT_COORDINATES = {
 	longitude: -79.98651,
 };
 
+const MAP_STYLES = {
+	dark: 'mapbox://styles/joshuagraber/clusfefd700es01p26np15nwx',
+	light: 'mapbox://styles/joshuagraber/clumq3et900wu01qo4lne6eks',
+};
+
 // Reactive vars
 const dataSources = ref([]);
 const error = ref('');
+// TODO: Use mapLoading, dataSourcesLoading, and isSidebarUpdating to handle loading states
 // const mapLoading = ref(true);
 // const dataSourcesLoading = ref(true);
-const isZooming = ref(false);
+const isSidebarUpdating = ref(false);
 const sourcesInMapBounds = ref([]);
 const sourcesInMapBoundsByCountyThenAgency = ref([]);
 const sourcesInMapBoundsSidebarRenderOrderByCounty = ref([]);
 
 onMounted(async () => {
-	const prefersDarkTheme = window.matchMedia(
-		'(prefers-color-scheme: dark)',
-	).matches;
+	const prefersDarkTheme = window.matchMedia('(prefers-color-scheme: dark)');
 
 	let mapCenter = DEFAULT_COORDINATES;
 
@@ -78,9 +87,7 @@ onMounted(async () => {
 	}
 
 	// Render map
-	const theme = prefersDarkTheme
-		? 'mapbox://styles/joshuagraber/clusfefd700es01p26np15nwx'
-		: 'mapbox://styles/joshuagraber/clumq3et900wu01qo4lne6eks';
+	const theme = prefersDarkTheme.matches ? MAP_STYLES.dark : MAP_STYLES.light;
 
 	mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 	const dataSourceMap = new mapboxgl.Map({
@@ -130,24 +137,33 @@ onMounted(async () => {
 			.addTo(dataSourceMap);
 	});
 
+	// Get initial sidebar data
+	setSidebarData(dataSourceMap);
+
 	// Event listeners
+	// Scale markers on zoom in/out
 	dataSourceMap.on('zoom', () => {
 		const scaleRatio = dataSourceMap.getZoom() / 10;
 		document
 			.querySelector(':root')
 			.style.setProperty('--scale-markers-by', scaleRatio);
 	});
+	// On completion of zoom or move events, update sidebar
 	dataSourceMap.on('zoomend', () => {
-		setInBoundsDataSources(dataSourceMap);
+		setSidebarData(dataSourceMap);
 	});
 	dataSourceMap.on('moveend', () => {
-		setInBoundsDataSources(dataSourceMap);
+		setSidebarData(dataSourceMap);
 	});
-	setInBoundsDataSources(dataSourceMap);
+	// Update map theme on user preference change
+	prefersDarkTheme.addEventListener('change', (e) => {
+		console.debug('theme preference change', { e });
+		dataSourceMap.setStyle(e.matches ? MAP_STYLES.dark : MAP_STYLES.light);
+	});
 });
 
-function setInBoundsDataSources(dataSourceMap) {
-	isZooming.value = true;
+function setSidebarData(dataSourceMap) {
+	isSidebarUpdating.value = true;
 	dataSources.value.forEach((source) => {
 		const index = sourcesInMapBounds.value.indexOf(source);
 		const isVisible = dataSourceMap
@@ -161,7 +177,7 @@ function setInBoundsDataSources(dataSourceMap) {
 		}
 	});
 	getSideBarRenderDataFormatted(dataSourceMap);
-	isZooming.value = false;
+	isSidebarUpdating.value = false;
 }
 
 function getSideBarRenderDataFormatted(dataSourceMap) {
