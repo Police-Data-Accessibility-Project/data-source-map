@@ -13,17 +13,23 @@
 				:key="county"
 				class="grid grid-cols-[repeat(auto-fill,_minmax(150px,_max-content))] grid-rows-[auto,_1fr] min-w-[max-content] gap-2 md:min-w-[unset] md:block md:w-full md:mt-4"
 			>
-				<h3 class="row-span-1 col-start-1 col-end-[-1] text-neutral-950">
-					{{ county }}
-					{{ getStateFromCounty(county) === 'LA' ? 'Parish' : 'County' }}
-				</h3>
+				<a
+					:href="`https://data-sources.pdap.io/search/all/${encodeURI(`${county} ${getStateFromCounty(county) === 'LA' ? 'Parish' : 'County'}`)}`"
+					rel="noreferrer"
+					target="_blank"
+				>
+					<h3 class="row-span-1 col-start-1 col-end-[-1] text-neutral-950">
+						{{ county }}
+						{{ getStateFromCounty(county) === 'LA' ? 'Parish' : 'County' }}
+					</h3>
+				</a>
 				<a
 					v-for="([agency, data], index) of Object.entries(
 						sourcesInMapBoundsByCountyThenAgency[county],
 					)"
 					:key="agency"
 					class="pdap-button-tertiary border-neutral-950 col-span-1 border-[1px] border-solid font-normal text-sm text-left mb-2 p-2 md:w-full md:max-w-[unset]"
-					:href="`https://data-sources.pdap.io/search/all/${encodeURI(data[0]?.municipality ?? data[0]?.county_name?.[0] ?? agency.split(' ')[0])}`"
+					:href="`https://data-sources.pdap.io/search/all/${encodeURI(data[0]?.municipality ?? agency.toLocaleLowerCase())}`"
 					target="_blank"
 					rel="noreferrer"
 					:style="{ gridColumnStart: index + 1, gridColumnEnd: index + 2 }"
