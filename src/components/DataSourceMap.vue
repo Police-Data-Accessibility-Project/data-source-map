@@ -14,11 +14,12 @@
 				class="grid grid-cols-[repeat(auto-fill,_minmax(150px,_max-content))] grid-rows-[auto,_1fr] min-w-[max-content] gap-2 md:min-w-[unset] md:block md:w-full md:mt-4"
 			>
 				<a
+					class="row-span-1 col-start-1 col-end-[-1] text-neutral-950"
 					:href="`https://data-sources.pdap.io/search/all/${encodeURI(`${county} ${getStateFromCounty(county) === 'LA' ? 'Parish' : 'County'}`)}`"
 					rel="noreferrer"
 					target="_blank"
 				>
-					<h3 class="row-span-1 col-start-1 col-end-[-1] text-neutral-950">
+					<h3>
 						{{ county }}
 						{{ getStateFromCounty(county) === 'LA' ? 'Parish' : 'County' }}
 					</h3>
@@ -307,12 +308,15 @@ async function getDataSourceLocationData() {
 	@apply h-4 w-4 text-lg;
 }
 
-.fa-arrow-right::before {
+.fa-arrow-right::before,
+.fa-map-marker::before {
 	@apply: font-normal text-neutral-950;
 }
 
 .fa-map-marker::before {
-	@apply text-neutral-950;
+	-webkit-text-shadow: inset 0px 4px 3px -4px var(--color-neutral-200);
+	-moz-text-shadow: inset 0px 4px 3px -4px var(--color-neutral-200);
+	text-shadow: 0 0 calc(3px * var(--scale-markers-by)) #000;
 	font-size: calc(2rem * var(--scale-markers-by));
 }
 </style>
