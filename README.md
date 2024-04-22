@@ -5,7 +5,6 @@ This is a `vue` project to demonstrate a map of data sources.
 To run this locally, you will need the following env vars set in a local `.env` file:
 
 `VITE_MAPBOX_TOKEN=<token>`
-`VITE_POSITION_STACK_TOKEN=<token>`
 
 Please reach out in Discord if you need values for these tokens.
 
