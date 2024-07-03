@@ -1,50 +1,19 @@
 <template>
-	<main class="h-[calc(100vh-80px)] w-full relative">
+	<main class="h-[calc(100vh-80px)] w-full relative p-0">
 		<!-- Map -->
-		<div id="mapboxContainer" class="h-full w-full" />
+		<div
+			v-show="!dataSourcesLoading"
+			id="mapboxContainer"
+			class="h-full w-full"
+		/>
 
-		<!-- Sidebar for list view of data sources -->
-		<aside
-			v-if="Object.keys(sourcesInMapBoundsByCountyThenAgency).length > 0"
-			class="absolute border-neutral-950 border-[1px] border-solid left-[5%] bottom-6 text-neutral-950 text-sm py-4 px-1 overflow-y-scroll bg-neutral-200 bg-opacity-85 max-w-[90%] my-o mx-auto inline-flex gap-4 md:block md:max-h-[75%] md:max-w-[25%] md:overflow-y-scroll md:right-6 md:left-[unset]"
-		>
-			<div
-				v-for="county of sourcesInMapBoundsSidebarRenderOrderByCounty"
-				:key="county"
-				class="grid grid-cols-[repeat(auto-fill,_minmax(150px,_max-content))] grid-rows-[auto,_1fr] min-w-[max-content] gap-2 md:min-w-[unset] md:block md:w-full md:mt-4"
-			>
-				<a
-					class="row-span-1 col-start-1 col-end-[-1] text-neutral-950"
-					:href="`https://data-sources.pdap.io/search/all/${encodeURI(`${county} ${getStateFromCounty(county) === 'LA' ? 'Parish' : 'County'}`)}`"
-					rel="noreferrer"
-					target="_blank"
-				>
-					<h3>
-						{{ county }}
-						{{ getStateFromCounty(county) === 'LA' ? 'Parish' : 'County' }}
-					</h3>
-				</a>
-				<a
-					v-for="([agency, data], index) of Object.entries(
-						sourcesInMapBoundsByCountyThenAgency[county],
-					)"
-					:key="agency"
-					class="pdap-button-tertiary border-neutral-950 col-span-1 border-[1px] border-solid font-normal text-sm text-left mb-2 p-2 md:w-full md:max-w-[unset]"
-					:href="`https://data-sources.pdap.io/search/all/${encodeURI(data[0]?.municipality ?? agency.toLocaleLowerCase())}`"
-					target="_blank"
-					rel="noreferrer"
-					:style="{ gridColumnStart: index + 1, gridColumnEnd: index + 2 }"
-				>
-					<span class="block">
-						{{ agency }}
-					</span>
-					<span class="block"
-						>{{ data.length }} data {{ pluralize('source', data.length) }}
-						<i class="fa fa-arrow-right" />
-					</span>
-				</a>
-			</div>
-		</aside>
+		<Spinner :show="dataSourcesLoading" :size="size" class="h-full w-full" />
+
+		<Sidebar
+			v-if="dataSourceMap && dataSources"
+			:map="dataSourceMap"
+			:data="dataSources"
+		/>
 	</main>
 </template>
 
@@ -52,6 +21,8 @@
 import { onMounted, ref } from 'vue';
 import axios from 'axios';
 import mapboxgl from 'mapbox-gl';
+import Sidebar from './DataSourceMapSidebar.vue';
+import { Spinner } from 'pdap-design-system';
 
 import recordTypesToDisplay from '../util/recordTypesToDisplay';
 
@@ -60,7 +31,7 @@ const PDAP_DATA_SOURCE_SEARCH =
 	'https://data-sources.pdap.io/api/search-tokens?endpoint=data-sources-map';
 
 /**
- * Pittsburgh city center
+ * ## Pittsburgh city center
  */
 const DEFAULT_COORDINATES = {
 	latitude: 40.44231,
@@ -72,22 +43,29 @@ const MAP_STYLES = {
 	light: 'mapbox://styles/joshuagraber/clumq3et900wu01qo4lne6eks',
 };
 
+// Setup
+mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
+
+// Emits
+const emit = defineEmits(['error', 'loading']);
+
 // Reactive vars
+const dataSourceMap = ref();
 const dataSources = ref([]);
 const error = ref('');
-// TODO: Use mapLoading, dataSourcesLoading, and isSidebarUpdating to handle loading states
-// const mapLoading = ref(true);
-// const dataSourcesLoading = ref(true);
-const isSidebarUpdating = ref(false);
-const sourcesInMapBounds = ref([]);
-const sourcesInMapBoundsByCountyThenAgency = ref([]);
-const sourcesInMapBoundsSidebarRenderOrderByCounty = ref([]);
+const dataSourcesLoading = ref(true);
+const size = ref(window.innerHeight / 15);
 
 onMounted(async () => {
-	const prefersDarkTheme = window.matchMedia('(prefers-color-scheme: dark)');
+	emit('loading', true);
+	await loadDataSources();
+	makeMap();
+});
+
+function makeMap() {
+	const { prefersDarkTheme, mapTheme: style } = handleTheme();
 
 	let mapCenter = DEFAULT_COORDINATES;
-
 	if (window.navigator.getCurrentPosition) {
 		window.navigator.getCurrentPosition((pos) => {
 			mapCenter.longitude = pos.coords.longitude;
@@ -96,36 +74,29 @@ onMounted(async () => {
 	}
 
 	// Render map
-	const theme = prefersDarkTheme.matches ? MAP_STYLES.dark : MAP_STYLES.light;
-
-	mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
-	const dataSourceMap = new mapboxgl.Map({
+	dataSourceMap.value = new mapboxgl.Map({
 		container: 'mapboxContainer',
-		style: theme,
+		style,
 		center: [mapCenter.longitude, mapCenter.latitude],
 		zoom: 10,
-		// maxBounds: [
-		// 	[-172.06707715558082, 15.064032429448638],
-		// 	[-28.673639540108578, 70.89960589653042],
-		// ],
+		maxBounds: [
+			[-172.06707715558082, 15.064032429448638],
+			[-28.673639540108578, 70.89960589653042],
+		],
 		minZoom: 3,
 		maxZoom: 12,
 	});
+
 	const nav = new mapboxgl.NavigationControl();
 	const geolocate = new mapboxgl.GeolocateControl({
 		positionOptions: {
 			enableHighAccuracy: true,
 		},
-		fitBoundsOptions: { linear: true, zoom: dataSourceMap.getZoom() },
+		fitBoundsOptions: { linear: true, zoom: dataSourceMap.value.getZoom() },
 		trackUserLocation: true,
 	});
-	dataSourceMap.addControl(nav, 'top-right');
-	dataSourceMap.addControl(geolocate, 'top-right');
-
-	// Populate map with data sources
-	dataSources.value = await getDataSourceLocationData().then((data) =>
-		data.filter((source) => recordTypesToDisplay.has(source.record_type)),
-	);
+	dataSourceMap.value.addControl(nav, 'top-right');
+	dataSourceMap.value.addControl(geolocate, 'top-right');
 
 	dataSources.value.forEach((source) => {
 		if (!source || !(source.lat || source.lng)) return;
@@ -134,8 +105,8 @@ onMounted(async () => {
 		markerElement.classList = 'fa fa-map-marker';
 
 		// create the popup
-		const popup = new mapboxgl.Popup({ offset: 25 }).setText(
-			source.agency_name,
+		const popup = new mapboxgl.Popup({ offset: 25 }).setDOMContent(
+			makeAnchor(source),
 		);
 
 		new mapboxgl.Marker({
@@ -143,149 +114,73 @@ onMounted(async () => {
 		})
 			.setLngLat([source.lng, source.lat])
 			.setPopup(popup)
-			.addTo(dataSourceMap);
+			.addTo(dataSourceMap.value);
 	});
-
-	// Get initial sidebar data
-	setSidebarData(dataSourceMap);
 
 	// Event listeners
 	// Scale markers on zoom in/out
-	dataSourceMap.on('zoom', () => {
-		const scaleRatio = dataSourceMap.getZoom() / 10;
+	dataSourceMap.value.on('zoom', () => {
+		const scaleRatio = dataSourceMap.value.getZoom() / 10;
 		document
 			.querySelector(':root')
 			.style.setProperty('--scale-markers-by', scaleRatio);
 	});
-	// On completion of zoom or move events, update sidebar
-	dataSourceMap.on('zoomend', () => {
-		setSidebarData(dataSourceMap);
-	});
-	dataSourceMap.on('moveend', () => {
-		setSidebarData(dataSourceMap);
-	});
 	// Update map theme on user preference change
 	prefersDarkTheme.addEventListener('change', (e) => {
 		console.debug('theme preference change', { e });
-		dataSourceMap.setStyle(e.matches ? MAP_STYLES.dark : MAP_STYLES.light);
+		dataSourceMap.value.setStyle(
+			e.matches ? MAP_STYLES.dark : MAP_STYLES.light,
+		);
 	});
-});
-
-function setSidebarData(dataSourceMap) {
-	isSidebarUpdating.value = true;
-	dataSources.value.forEach((source) => {
-		const index = sourcesInMapBounds.value.indexOf(source);
-		const isVisible = dataSourceMap
-			.getBounds()
-			.contains([source.lng, source.lat]);
-
-		if (isVisible && index === -1) {
-			sourcesInMapBounds.value.push(source);
-		} else if (!isVisible && index > -1) {
-			sourcesInMapBounds.value.splice(index, 1);
-		}
-	});
-	getSideBarRenderDataFormatted(dataSourceMap);
-	isSidebarUpdating.value = false;
+	// mapLoading.value = false;
 }
 
-function getSideBarRenderDataFormatted(dataSourceMap) {
-	const counties = {};
-	const center = dataSourceMap.getCenter();
-
-	const reducedData = sourcesInMapBounds.value.reduce((acc, cur) => {
-		// Get distance of each point from center
-		const distanceFromCenter = distanceBetween({
-			first: [cur.lng, cur.lat],
-			second: [center.lng, center.lat],
-		});
-		const agency = cur.agency_name;
-		const county = cur.county_name?.[0];
-
-		// Keep track of county with closest agency to map center (this is how we will sort render data later)
-		if (counties[county]) {
-			const updatedDistance =
-				distanceFromCenter < counties[county]
-					? distanceFromCenter
-					: counties[county];
-
-			counties[county] = updatedDistance;
-		} else {
-			counties[county] = distanceFromCenter;
-		}
-
-		// Assign data to an object shaped according to render of sidebar: {COUNTY: {AGENCY: DATA_SOURCE[]}}, i.e. { "Allegheny": {"Pittsburgh PD": [{}, {}, {}]}}
-		if (acc?.[county]) {
-			const agencyPayload = acc?.[county]?.[agency]
-				? [...acc[county][agency], cur]
-				: [cur];
-			return {
-				...acc,
-				[county]: {
-					...acc[county],
-					[agency]: agencyPayload,
-				},
-			};
-		} else {
-			return {
-				...acc,
-				[county]: {
-					[agency]: [cur],
-				},
-			};
-		}
-	}, {});
-
-	sourcesInMapBoundsByCountyThenAgency.value = reducedData;
-	sourcesInMapBoundsSidebarRenderOrderByCounty.value = Object.entries(counties)
-		.sort(([, valA], [, valB]) => valA > valB)
-		.map(([key]) => key);
-
-	console.debug({
-		sourcesFormatted: sourcesInMapBoundsByCountyThenAgency.value,
-		renderOrderByCounty: sourcesInMapBoundsSidebarRenderOrderByCounty.value,
-	});
+function makeAnchor(source) {
+	const anchor = document.createElement('a');
+	anchor.href = encodeURI(
+		`https://data-sources.pdap.io/search/all/${source.municipality ?? source.agency_name.toLocaleLowerCase()}`,
+	);
+	anchor.innerText = source.agency_name;
+	anchor.style.height = '100%';
+	anchor.style.width = '100%';
+	anchor.style.padding = '4px';
+	anchor.setAttribute('target', '_blank');
+	anchor.setAttribute('rel', 'noreferrers');
+	anchor.setAttribute(
+		'aria-label',
+		`search for data related to ${source.municipality}`,
+	);
+	return anchor;
 }
 
-/**
- * Calculates distance with Haversine formula:
- * https://en.wikipedia.org/wiki/Haversine_formula
- *
- * @param {Record<'first' | 'second', [number, number]>} args two points, first and second, each tuple should be arranged as follows: [longitude, latitude]
- */
-function distanceBetween({ first: [lon1, lat1], second: [lon2, lat2] }) {
-	const r = 6371; // km
-	const p = Math.PI / 180;
+function handleTheme() {
+	const prefersDarkTheme = window.matchMedia('(prefers-color-scheme: dark)');
 
-	const a =
-		0.5 -
-		Math.cos((lat2 - lat1) * p) / 2 +
-		(Math.cos(lat1 * p) *
-			Math.cos(lat2 * p) *
-			(1 - Math.cos((lon2 - lon1) * p))) /
-			2;
-
-	return 2 * r * Math.asin(Math.sqrt(a));
+	return {
+		prefersDarkTheme,
+		mapTheme: prefersDarkTheme.matches ? MAP_STYLES.dark : MAP_STYLES.light,
+	};
 }
 
-/**
- * Copy of pluralize util from data-sources
- */
-function pluralize(word, count, suffix = 's') {
-	return count === 1 ? word : `${word}${suffix}`;
+function filterByRecords(source) {
+	return recordTypesToDisplay.has(source.record_type);
 }
 
-function getStateFromCounty(county) {
-	return Object.entries(
-		sourcesInMapBoundsByCountyThenAgency.value[county],
-	)[0][1][0].state_iso;
-}
-
-async function getDataSourceLocationData() {
-	return await axios
-		.get(PDAP_DATA_SOURCE_SEARCH)
+async function loadDataSources() {
+	// Populate map with data sources
+	dataSources.value = await fetchDataSourceData()
 		.then((resp) => resp.data.data)
-		.catch((e) => (error.value = e?.message));
+		.then((data) => data.filter(filterByRecords))
+		.catch((e) => {
+			error.value = e?.message;
+			emit('error', e?.message);
+		});
+	dataSourcesLoading.value = false;
+	emit('loading', false);
+}
+
+async function fetchDataSourceData() {
+	return await axios.get(PDAP_DATA_SOURCE_SEARCH);
 }
 </script>
 
