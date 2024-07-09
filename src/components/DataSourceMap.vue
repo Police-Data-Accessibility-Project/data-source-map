@@ -2,7 +2,7 @@
 	<main class="h-[calc(100vh-80px)] w-full relative p-0">
 		<!-- Map -->
 		<div
-			v-show="!dataSourcesLoading"
+			v-if="!dataSourcesLoading"
 			id="mapboxContainer"
 			class="h-full w-full"
 		/>
@@ -38,9 +38,10 @@ const DEFAULT_COORDINATES = {
 	longitude: -79.98651,
 };
 
+// TODO: use prod url rather than draft
 const MAP_STYLES = {
-	dark: 'mapbox://styles/joshuagraber/clusfefd700es01p26np15nwx',
-	light: 'mapbox://styles/joshuagraber/clumq3et900wu01qo4lne6eks',
+	dark: 'mapbox://styles/josh-pdap/clyejn3bg014x01nzg6786ozv',
+	light: 'mapbox://styles/josh-pdap/clyejn7qx017601qoa3bo8wni',
 };
 
 // Setup
@@ -63,13 +64,19 @@ onMounted(async () => {
 });
 
 function makeMap() {
+	/**
+	 * Cache for rendered markers, keeps from layering a bunch of markers on top of each other for one agency with multiple data sources.
+	 */
+	const dataSourceMarkersRendered = new Set();
 	const { prefersDarkTheme, mapTheme: style } = handleTheme();
 
+	/**
+	 * Default is Pgh city center unless user location available via navigator
+	 */
 	let mapCenter = DEFAULT_COORDINATES;
 	if (window.navigator.getCurrentPosition) {
 		window.navigator.getCurrentPosition((pos) => {
-			mapCenter.longitude = pos.coords.longitude;
-			mapCenter.latitude = pos.coords.latitude;
+			mapCenter = pos.coords;
 		});
 	}
 
@@ -99,7 +106,17 @@ function makeMap() {
 	dataSourceMap.value.addControl(geolocate, 'top-right');
 
 	dataSources.value.forEach((source) => {
-		if (!source || !(source.lat || source.lng)) return;
+		// Return early if location data incomplete or missing
+		if (!(source.lat || source.lng)) return;
+
+		// Only place one marker per agency to avoid weirdness with rendering a bunch of markers in one place
+		// Also helps with performance, since we're rendering all data sources at once
+		// TODO: look into rendering only markers that are contained within visible map area. What would it take to do this?
+		if (dataSourceMarkersRendered.has(source.agency_name)) {
+			return;
+		} else {
+			dataSourceMarkersRendered.add(source.agency_name);
+		}
 
 		const markerElement = document.createElement('i');
 		markerElement.classList = 'fa fa-map-marker';
@@ -109,6 +126,7 @@ function makeMap() {
 			makeAnchor(source),
 		);
 
+		// TODO: How to associate this with the sidebar, so we can highlight markers on hover?
 		new mapboxgl.Marker({
 			element: markerElement,
 		})
@@ -127,7 +145,6 @@ function makeMap() {
 	});
 	// Update map theme on user preference change
 	prefersDarkTheme.addEventListener('change', (e) => {
-		console.debug('theme preference change', { e });
 		dataSourceMap.value.setStyle(
 			e.matches ? MAP_STYLES.dark : MAP_STYLES.light,
 		);
@@ -137,6 +154,7 @@ function makeMap() {
 
 function makeAnchor(source) {
 	const anchor = document.createElement('a');
+	// TODO: update with new search endpoint
 	anchor.href = encodeURI(
 		`https://data-sources.pdap.io/search/all/${source.municipality ?? source.agency_name.toLocaleLowerCase()}`,
 	);
@@ -211,7 +229,8 @@ async function fetchDataSourceData() {
 .fa-map-marker::before {
 	-webkit-text-shadow: inset 0px 4px 3px -4px var(--color-neutral-200);
 	-moz-text-shadow: inset 0px 4px 3px -4px var(--color-neutral-200);
-	text-shadow: 0 0 calc(3px * var(--scale-markers-by)) #000;
+	text-shadow: inset 0px 4px 3px -4px var(--color-neutral-200);
+	/* box-shadow: 0 0 calc(3px * var(--scale-markers-by)) var(--color-neutral-900); */
 	font-size: calc(2rem * var(--scale-markers-by));
 }
 </style>

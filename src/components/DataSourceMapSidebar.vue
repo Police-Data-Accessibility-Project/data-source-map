@@ -13,6 +13,7 @@
 			<a
 				class="row-span-1 col-start-1 col-end-[-1] text-neutral-950"
 				:href="
+					// TODO: update this when new search endpoint ready
 					encodeURI(
 						`https://data-sources.pdap.io/search/all/${`${county} ${getStateFromCounty(county) === 'LA' ? 'Parish' : 'County'}`}`,
 					)
@@ -32,6 +33,7 @@
 				:key="agency"
 				class="pdap-button-tertiary border-neutral-950 col-span-1 border-[1px] border-solid font-normal text-sm text-left mb-2 p-2 md:w-full md:max-w-[unset]"
 				:href="
+					// TODO: update this when new search endpoint ready
 					encodeURI(
 						`https://data-sources.pdap.io/search/all/${data[0]?.municipality ?? agency.toLocaleLowerCase()}`,
 					)
@@ -54,7 +56,7 @@
 
 <script setup>
 import mapboxgl from 'mapbox-gl';
-import { defineProps, onMounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 
 const props = defineProps({
 	map: { type: mapboxgl.Map },
@@ -78,6 +80,9 @@ onMounted(() => {
 	});
 });
 
+/**
+ * Updates sidebar data on initial load and zoom/move events
+ */
 async function setSidebarData(dataSourceMap) {
 	isSidebarUpdating.value = true;
 
@@ -97,6 +102,9 @@ async function setSidebarData(dataSourceMap) {
 	isSidebarUpdating.value = false;
 }
 
+/**
+ * Lots of data manipulation here to format data into a shape that is friendly to render
+ */
 function getSideBarRenderDataFormatted(dataSourceMap) {
 	const counties = {};
 	const center = dataSourceMap.getCenter();
@@ -148,6 +156,7 @@ function getSideBarRenderDataFormatted(dataSourceMap) {
 	sourcesInMapBoundsSidebarRenderOrderByCounty.value = Object.entries(counties)
 		.sort(([, valA], [, valB]) => valA > valB)
 		.map(([key]) => key)
+		// Max 100 items in sidebar
 		.slice(0, 100);
 }
 
@@ -174,11 +183,16 @@ function distanceBetween({ here: [lon1, lat1], there: [lon2, lat2] }) {
 
 /**
  * Copy of pluralize util from data-sources
+ * TODO: if used in data-sources, use existing util
  */
 function pluralize(word, count, suffix = 's') {
 	return count === 1 ? word : `${word}${suffix}`;
 }
 
+/**
+ * Hacky and very much tied to the shape of the data
+ * TODO: is there a better / more declarative way of accomplishing this?
+ */
 function getStateFromCounty(county) {
 	return Object.entries(
 		sourcesInMapBoundsByCountyThenAgency.value[county],
