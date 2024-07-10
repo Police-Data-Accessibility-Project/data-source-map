@@ -38,7 +38,6 @@ const DEFAULT_COORDINATES = {
 	longitude: -79.98651,
 };
 
-// TODO: use prod url rather than draft
 const MAP_STYLES = {
 	dark: 'mapbox://styles/josh-pdap/clyejn3bg014x01nzg6786ozv',
 	light: 'mapbox://styles/josh-pdap/clyejn7qx017601qoa3bo8wni',
