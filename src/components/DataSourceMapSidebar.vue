@@ -17,6 +17,16 @@
 				<h3 class="m-0">
 					{{ sourcesInMapBoundsByCountyThenLocality[county].displayName }}
 				</h3>
+				<span class="block">
+					{{ sourcesInMapBoundsByCountyThenLocality[county].count }} data
+					{{
+						pluralize(
+							'source',
+							sourcesInMapBoundsByCountyThenLocality[county].count,
+						)
+					}}
+					<i class="fa fa-arrow-right" />
+				</span>
 			</RouterLink>
 			<template
 				v-if="sourcesInMapBoundsByCountyThenLocality[county]?.children?.length"
@@ -133,6 +143,7 @@ function getSideBarRenderDataFormatted(dataSourceMap) {
 			data[county] = {
 				displayName: countyDisplay,
 				path: `/search/results?location_id=${cur.location_id}&state=${ABBREVIATIONS_TO_STATES.get(cur.state_iso)}&county=${county}`,
+				count: 1,
 				children: locality
 					? [
 							{
@@ -144,6 +155,7 @@ function getSideBarRenderDataFormatted(dataSourceMap) {
 					: [],
 			};
 		} else {
+			data[county].count = data[county].count + 1;
 			const existingLocalityIndex = data[county].children.findIndex(
 				(child) => child.displayName === locality,
 			);
