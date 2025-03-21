@@ -209,33 +209,67 @@ function attachDataSourcesToMap() {
 		return feature;
 	});
 
-	// Add markers for data sources
-	dataSources.value.forEach((source) => {
-		if (!(source.lat || source.lng)) return;
+	dataSourceMap.value.loadImage("https://docs.mapbox.com/mapbox-gl-js/assets/custom_marker.png", (error, image) => {
+		if (error) throw error;
+		dataSourceMap.value.addImage("custom-marker", image);
 
-		if (dataSourcesByMarkersRendered.has(source.agency_name)) {
-			dataSourcesByMarkersRendered.set([
-				source.agency_name,
-				dataSourcesByMarkersRendered.get(source.agency_name) + 1,
-			]);
-		} else {
-			dataSourcesByMarkersRendered.set([source.agency_name, 1]);
-		}
+		const markerPoints = dataSources.value.map((source) => {
+			return {
+				type: "Feature",
+				geometry: {
+					type: "Point",
+					coordinates: [source.lng, source.lat],
+				},
+				properties: {
+					title: source.agency_name,
+				},
+			};
+		});
 
-		const markerElement = document.createElement('i');
-		markerElement.classList = 'fa fa-map-marker';
+		dataSourceMap.value.addSource("markers", {
+			type: "geojson",
+			data: {
+				type: "FeatureCollection",
+				features: markerPoints,
+			},
+		});
 
-		const popup = new mapboxgl.Popup({ offset: 25 }).setDOMContent(
-			makeAnchor(source),
-		);
+		dataSourceMap.value.addLayer({
+			id: "marker-layer",
+			type: "symbol",
+			source: "markers",
+			maxzoom: 6,
+			layout: {
+				"icon-image": "custom-marker",
+				"icon-size": 0.5,
+				"text-allow-overlap": true,
+				"icon-allow-overlap": true,
+				"text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+				"text-size": 10,
+				"text-offset": [0, 1.25],
+				"text-anchor": "top",
+			},
+		});
 
-		new mapboxgl.Marker({
-			element: markerElement,
-		})
-			.setLngLat([source.lng, source.lat])
-			.setPopup(popup)
-			.addTo(dataSourceMap.value);
+		dataSourceMap.value.addLayer({
+			id: "marker-layer-with-text",
+			type: "symbol",
+			source: "markers",
+			minzoom: 6,
+			layout: {
+				"icon-image": "custom-marker",
+				"icon-size": 0.5,
+				"text-allow-overlap": false,
+				"icon-allow-overlap": true,
+				"text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+				"text-size": 10,
+				"text-field": ["get", "title"],
+				"text-offset": [0, 1.25],
+				"text-anchor": "top",
+			},
+		});
 	});
+
 
 	// Add sources
 	dataSourceMap.value.addSource('counties', {
