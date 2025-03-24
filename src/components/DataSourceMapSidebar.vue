@@ -97,6 +97,8 @@ async function setSidebarData(dataSourceMap) {
 			sourcesInMapBounds.value.splice(index, 1);
 		}
 	});
+	console.log("from query", props.map.querySourceFeatures("regular-markers"))
+
 	getSideBarRenderDataFormatted(dataSourceMap);
 	isSidebarUpdating.value = false;
 }
