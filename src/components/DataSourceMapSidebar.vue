@@ -85,18 +85,9 @@ onMounted(() => {
 async function setSidebarData(dataSourceMap) {
 	isSidebarUpdating.value = true;
 
-	props.data.forEach((source) => {
-		const index = sourcesInMapBounds.value.indexOf(source);
-		const isVisible = dataSourceMap
-			.getBounds()
-			.contains([source.lng, source.lat]);
+	const mapBounds = dataSourceMap.getBounds()
+	sourcesInMapBounds.value = props.data.filter((source) => mapBounds.contains([source.lng, source.lat]))
 
-		if (isVisible && index === -1) {
-			sourcesInMapBounds.value.push(source);
-		} else if (!isVisible && index > -1) {
-			sourcesInMapBounds.value.splice(index, 1);
-		}
-	});
 	getSideBarRenderDataFormatted(dataSourceMap);
 	isSidebarUpdating.value = false;
 }

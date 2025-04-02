@@ -26,11 +26,6 @@
 				:text="loadingText"
 			/>
 
-			<Sidebar
-				v-if="dataSourceMap && dataSources.length"
-				:map="dataSourceMap"
-				:data="dataSources"
-			/>
 		</div>
 	</main>
 </template>
@@ -54,8 +49,8 @@ const PDAP_DATA_SOURCE_SEARCH =
 	import.meta.env.VITE_API_URL + '/map/data-sources';
 
 const MAP_STYLES = {
-	dark: 'mapbox://styles/josh-pdap/clyejn3bg014x01nzg6786ozv',
-	light: 'mapbox://styles/josh-pdap/clyejn7qx017601qoa3bo8wni',
+	dark: 'mapbox://styles/josh-pdap/clyejn3bg014x01nzg6786ozv?optimize=true',
+	light: 'mapbox://styles/josh-pdap/clyejn7qx017601qoa3bo8wni?optimize=true',
 };
 
 // Setup
@@ -209,33 +204,115 @@ function attachDataSourcesToMap() {
 		return feature;
 	});
 
-	// Add markers for data sources
-	dataSources.value.forEach((source) => {
-		if (!(source.lat || source.lng)) return;
+	dataSourceMap.value.loadImage("https://docs.mapbox.com/mapbox-gl-js/assets/custom_marker.png", (error, image) => {
+		if (error) throw error;
+		dataSourceMap.value.addImage("custom-marker", image);
 
-		if (dataSourcesByMarkersRendered.has(source.agency_name)) {
-			dataSourcesByMarkersRendered.set([
-				source.agency_name,
-				dataSourcesByMarkersRendered.get(source.agency_name) + 1,
-			]);
-		} else {
-			dataSourcesByMarkersRendered.set([source.agency_name, 1]);
-		}
+		const markerPoints = dataSources.value.map((source) => {
+			return {
+				type: "Feature",
+				geometry: {
+					type: "Point",
+					coordinates: [source.lng, source.lat],
+				},
+				properties: {
+					title: source.agency_name,
+				},
+			};
+		});
 
-		const markerElement = document.createElement('i');
-		markerElement.classList = 'fa fa-map-marker';
+		dataSourceMap.value.addSource("markers", {
+			type: "geojson",
+			data: {
+				type: "FeatureCollection",
+				features: markerPoints,
+			},
+			cluster: true,
+			clusterMaxZoom: 8,
+			clusterRadius: 50
+		});
 
-		const popup = new mapboxgl.Popup({ offset: 25 }).setDOMContent(
-			makeAnchor(source),
-		);
+		dataSourceMap.value.addLayer({
+			id: "clusters",
+			type: "circle",
+			source: "markers",
+			filter: ["has", "point_count"],
+			paint: {
+				"circle-color": ["step", ["get", "point_count"], "#51bbd6", 100, "#f1f075", 750, "#f28cb1"],
+				"circle-radius": ["step", ["get", "point_count"], 20, 100, 30, 750, 40],
+			},
+		});
 
-		new mapboxgl.Marker({
-			element: markerElement,
-		})
-			.setLngLat([source.lng, source.lat])
-			.setPopup(popup)
-			.addTo(dataSourceMap.value);
+		dataSourceMap.value.addLayer({
+			id: "cluster-count",
+			type: "symbol",
+			source: "markers",
+			filter: ["has", "point_count"],
+			layout: {
+				"text-field": ["get", "point_count_abbreviated"],
+				"text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
+				"text-size": 12,
+			},
+		});
+
+
+		// inspect a cluster on click
+		dataSourceMap.value.on("click", "clusters", (e) => {
+			const features = dataSourceMap.value.queryRenderedFeatures(e.point, {
+				layers: ["clusters"],
+			});
+			const clusterId = features[0].properties.cluster_id;
+			dataSourceMap.value.getSource("markers").getClusterExpansionZoom(clusterId, (err, zoom) => {
+				if (err) return;
+
+				dataSourceMap.value.easeTo({
+					center: features[0].geometry.coordinates,
+					zoom: zoom,
+				});
+			});
+		});
+
+		dataSourceMap.value.addLayer({
+			id: "unclustered-markers",
+			type: "symbol",
+			source: "markers",
+			filter: ['!', ['has', 'point_count']],
+			layout: {
+				"icon-image": "custom-marker",
+				"icon-size": 0.5,
+				"icon-allow-overlap": true,
+			},
+		});
+
+		dataSourceMap.value.addLayer({
+			id: "unclustered-markers-label",
+			type: "symbol",
+			source: "markers",
+			minzoom: 10,
+			filter: ["!", ["has", "point_count"]],
+			layout: {
+				"text-allow-overlap": true,
+				"text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+				"text-size": 10,
+				"text-field": ["get", "title"],
+				"text-offset": [0, 1.25],
+				"text-anchor": "top",
+			},
+			paint: {
+				"text-color": "rgb(255,255,255)",
+				"text-halo-width": 2,
+				"text-halo-color": "rgb(0,0,0)",
+			},
+		});
+
+		dataSourceMap.value.on("mouseenter", "clusters", () => {
+			dataSourceMap.value.getCanvas().style.cursor = "pointer";
+		});
+		dataSourceMap.value.on("mouseleave", "clusters", () => {
+			dataSourceMap.value.getCanvas().style.cursor = "";
+		});
 	});
+
 
 	// Add sources
 	dataSourceMap.value.addSource('counties', {
