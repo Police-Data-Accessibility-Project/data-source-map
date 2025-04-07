@@ -1,8 +1,7 @@
 <template>
 	<main class="h-[calc(100vh-80px)] w-full p-16 pb-24">
 		<div class="h-full w-full relative">
-			<!-- Dummy search input for testing search of counties - TODO: use typeahead -->
-			<div class="absolute top-4 left-4 z-10">
+			<!-- <div class="absolute top-4 left-4 z-10">
 				<input
 					v-model="searchQuery"
 					type="text"
@@ -10,7 +9,7 @@
 					class="px-4 py-2 rounded border bg-black"
 					@keyup.enter="handleSearch"
 				/>
-			</div>
+			</div> -->
 
 			<!-- Map -->
 			<div
@@ -25,7 +24,6 @@
 				class="h-full w-full absolute left-0 top-0 z-50 bg-goldneutral-500/70 dark:bg-wineneutral-500/70"
 				:text="loadingText"
 			/>
-
 		</div>
 	</main>
 </template>
@@ -67,14 +65,14 @@ const dataSourcesLoading = ref(true);
 const size = ref(window.innerHeight / 15);
 const zoom = ref(3.5);
 const loadingText = ref('Data sources loading...');
-const searchQuery = ref('');
+// const searchQuery = ref('');
 
-function handleSearch() {
-	console.debug('handleSearch', { searchQuery: searchQuery.value });
-	if (searchQuery.value) {
-		searchAndCenterCounty(searchQuery.value);
-	}
-}
+// function handleSearch() {
+// 	console.debug('handleSearch', { searchQuery: searchQuery.value });
+// 	if (searchQuery.value) {
+// 		searchAndCenterCounty(searchQuery.value);
+// 	}
+// }
 
 onMounted(async () => {
 	emit('loading', true);
@@ -153,7 +151,6 @@ function makeMap() {
 
 function attachDataSourcesToMap() {
 	const { color, fillColor } = handleTheme();
-	const dataSourcesByMarkersRendered = new Map();
 
 	// Process GeoJSON data with data sources
 	countyGeoJson.features = countyGeoJson.features.map((feature) => {
@@ -204,115 +201,134 @@ function attachDataSourcesToMap() {
 		return feature;
 	});
 
-	dataSourceMap.value.loadImage("https://docs.mapbox.com/mapbox-gl-js/assets/custom_marker.png", (error, image) => {
-		if (error) throw error;
-		dataSourceMap.value.addImage("custom-marker", image);
+	dataSourceMap.value.loadImage(
+		'https://docs.mapbox.com/mapbox-gl-js/assets/custom_marker.png',
+		(error, image) => {
+			if (error) throw error;
+			dataSourceMap.value.addImage('custom-marker', image);
 
-		const markerPoints = dataSources.value.map((source) => {
-			return {
-				type: "Feature",
-				geometry: {
-					type: "Point",
-					coordinates: [source.lng, source.lat],
-				},
-				properties: {
-					title: source.agency_name,
-				},
-			};
-		});
-
-		dataSourceMap.value.addSource("markers", {
-			type: "geojson",
-			data: {
-				type: "FeatureCollection",
-				features: markerPoints,
-			},
-			cluster: true,
-			clusterMaxZoom: 8,
-			clusterRadius: 50
-		});
-
-		dataSourceMap.value.addLayer({
-			id: "clusters",
-			type: "circle",
-			source: "markers",
-			filter: ["has", "point_count"],
-			paint: {
-				"circle-color": ["step", ["get", "point_count"], "#51bbd6", 100, "#f1f075", 750, "#f28cb1"],
-				"circle-radius": ["step", ["get", "point_count"], 20, 100, 30, 750, 40],
-			},
-		});
-
-		dataSourceMap.value.addLayer({
-			id: "cluster-count",
-			type: "symbol",
-			source: "markers",
-			filter: ["has", "point_count"],
-			layout: {
-				"text-field": ["get", "point_count_abbreviated"],
-				"text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
-				"text-size": 12,
-			},
-		});
-
-
-		// inspect a cluster on click
-		dataSourceMap.value.on("click", "clusters", (e) => {
-			const features = dataSourceMap.value.queryRenderedFeatures(e.point, {
-				layers: ["clusters"],
+			const markerPoints = dataSources.value.map((source) => {
+				return {
+					type: 'Feature',
+					geometry: {
+						type: 'Point',
+						coordinates: [source.lng, source.lat],
+					},
+					properties: {
+						title: source.agency_name,
+					},
+				};
 			});
-			const clusterId = features[0].properties.cluster_id;
-			dataSourceMap.value.getSource("markers").getClusterExpansionZoom(clusterId, (err, zoom) => {
-				if (err) return;
 
-				dataSourceMap.value.easeTo({
-					center: features[0].geometry.coordinates,
-					zoom: zoom,
+			dataSourceMap.value.addSource('markers', {
+				type: 'geojson',
+				data: {
+					type: 'FeatureCollection',
+					features: markerPoints,
+				},
+				cluster: true,
+				clusterMaxZoom: 8,
+				clusterRadius: 50,
+			});
+
+			dataSourceMap.value.addLayer({
+				id: 'clusters',
+				type: 'circle',
+				source: 'markers',
+				filter: ['has', 'point_count'],
+				paint: {
+					'circle-color': [
+						'step',
+						['get', 'point_count'],
+						'#51bbd6',
+						100,
+						'#f1f075',
+						750,
+						'#f28cb1',
+					],
+					'circle-radius': [
+						'step',
+						['get', 'point_count'],
+						20,
+						100,
+						30,
+						750,
+						40,
+					],
+				},
+			});
+
+			dataSourceMap.value.addLayer({
+				id: 'cluster-count',
+				type: 'symbol',
+				source: 'markers',
+				filter: ['has', 'point_count'],
+				layout: {
+					'text-field': ['get', 'point_count_abbreviated'],
+					'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+					'text-size': 12,
+				},
+			});
+
+			// inspect a cluster on click
+			dataSourceMap.value.on('click', 'clusters', (e) => {
+				const features = dataSourceMap.value.queryRenderedFeatures(e.point, {
+					layers: ['clusters'],
 				});
+				const clusterId = features[0].properties.cluster_id;
+				dataSourceMap.value
+					.getSource('markers')
+					.getClusterExpansionZoom(clusterId, (err, zoom) => {
+						if (err) return;
+
+						dataSourceMap.value.easeTo({
+							center: features[0].geometry.coordinates,
+							zoom: zoom,
+						});
+					});
 			});
-		});
 
-		dataSourceMap.value.addLayer({
-			id: "unclustered-markers",
-			type: "symbol",
-			source: "markers",
-			filter: ['!', ['has', 'point_count']],
-			layout: {
-				"icon-image": "custom-marker",
-				"icon-size": 0.5,
-				"icon-allow-overlap": true,
-			},
-		});
+			dataSourceMap.value.addLayer({
+				id: 'unclustered-markers',
+				type: 'symbol',
+				source: 'markers',
+				filter: ['!', ['has', 'point_count']],
+				layout: {
+					'icon-image': 'custom-marker',
+					'icon-size': 0.5,
+					'icon-allow-overlap': true,
+				},
+			});
 
-		dataSourceMap.value.addLayer({
-			id: "unclustered-markers-label",
-			type: "symbol",
-			source: "markers",
-			minzoom: 10,
-			filter: ["!", ["has", "point_count"]],
-			layout: {
-				"text-allow-overlap": true,
-				"text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
-				"text-size": 10,
-				"text-field": ["get", "title"],
-				"text-offset": [0, 1.25],
-				"text-anchor": "top",
-			},
-			paint: {
-				"text-color": "rgb(255,255,255)",
-				"text-halo-width": 2,
-				"text-halo-color": "rgb(0,0,0)",
-			},
-		});
+			dataSourceMap.value.addLayer({
+				id: 'unclustered-markers-label',
+				type: 'symbol',
+				source: 'markers',
+				minzoom: 10,
+				filter: ['!', ['has', 'point_count']],
+				layout: {
+					'text-allow-overlap': true,
+					'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+					'text-size': 10,
+					'text-field': ['get', 'title'],
+					'text-offset': [0, 1.25],
+					'text-anchor': 'top',
+				},
+				paint: {
+					'text-color': 'rgb(255,255,255)',
+					'text-halo-width': 2,
+					'text-halo-color': 'rgb(0,0,0)',
+				},
+			});
 
-		dataSourceMap.value.on("mouseenter", "clusters", () => {
-			dataSourceMap.value.getCanvas().style.cursor = "pointer";
-		});
-		dataSourceMap.value.on("mouseleave", "clusters", () => {
-			dataSourceMap.value.getCanvas().style.cursor = "";
-		});
-	});
-
+			dataSourceMap.value.on('mouseenter', 'clusters', () => {
+				dataSourceMap.value.getCanvas().style.cursor = 'pointer';
+			});
+			dataSourceMap.value.on('mouseleave', 'clusters', () => {
+				dataSourceMap.value.getCanvas().style.cursor = '';
+			});
+		},
+	);
 
 	// Add sources
 	dataSourceMap.value.addSource('counties', {
@@ -547,25 +563,6 @@ async function fetchDataSourceData() {
 			Authorization: 'Basic ' + import.meta.env.VITE_API_KEY,
 		},
 	});
-}
-
-function makeAnchor(source) {
-	const anchor = document.createElement('a');
-	// TODO: update with new search endpoint
-	anchor.href = encodeURI(
-		`https://data-sources.pdap.io/search/all/${source.municipality ?? source.agency_name.toLocaleLowerCase()}`,
-	);
-	anchor.innerText = source.agency_name;
-	anchor.style.height = '100%';
-	anchor.style.width = '100%';
-	anchor.style.padding = '4px';
-	anchor.setAttribute('target', '_blank');
-	anchor.setAttribute('rel', 'noreferrers');
-	anchor.setAttribute(
-		'aria-label',
-		`search for data related to ${source.municipality}`,
-	);
-	return anchor;
 }
 
 function searchAndCenterCounty(searchTerm) {
