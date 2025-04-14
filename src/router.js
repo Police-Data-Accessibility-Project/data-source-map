@@ -1,17 +1,17 @@
 import { createWebHistory, createRouter } from 'vue-router';
-import DataSourceMap from './components/DataSourceMap.vue';
-import DataSourceCountiesMap from './components/DataSourceCountiesMap.vue';
+import SearchRedirect from './pages/SearchRedirect.vue';
+import MapRoute from './pages/MapRoute.vue';
 
 const routes = [
 	{
 		path: '/',
-		component: DataSourceMap,
+		component: MapRoute,
 		name: 'DataSourceMap',
 	},
 	{
-		path: '/counties',
-		component: DataSourceCountiesMap,
-		name: 'DataSourceCountiesMap',
+		path: '/search/results',
+		component: SearchRedirect,
+		name: 'SearchRedirect',
 	},
 ];
 
