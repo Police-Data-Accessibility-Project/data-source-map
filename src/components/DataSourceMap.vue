@@ -16,14 +16,15 @@
 <script setup>
 import { onMounted, ref, watch, computed } from 'vue';
 import mapboxgl from 'mapbox-gl';
+import _debounce from 'lodash/debounce';
 // import polylabel from '@mapbox/polylabel';
 // TODO: implement "sidebar" in a more Mapbox-friendly way
 // import Sidebar from './DataSourceMapSidebar.vue';
 import { Spinner } from 'pdap-design-system';
 // import countyGeoJson from '../util/geoJSON/counties.json';
 // import stateGeoJson from '../util/geoJSON/states.json';
-import _debounce from 'lodash/debounce';
-// import { STATEFP_TO_ABBR } from '../util/constants';
+import { STATE_ISO_TO_FEATURE_ID, STATE_ISO_TO_FIPS } from '../util/constants';
+import location from '../assets/location.png';
 
 const MAP_STYLES = {
 	dark: 'mapbox://styles/josh-pdap/clyejn3bg014x01nzg6786ozv?optimize=true',
@@ -48,7 +49,7 @@ const props = defineProps({
 // Reactive vars
 const currentDataSources = computed(() => props.dataSources);
 const map = ref();
-const isLoading = computed(() => !props.dataSources.length);
+const isLoading = computed(() => !props.dataSources?.length);
 const isMapReady = ref(false);
 const loadingText = ref('Data sources loading...');
 const size = ref(window.innerHeight / 15);
@@ -96,12 +97,12 @@ function makeMap() {
 		style,
 		center: [-98, 36],
 		zoom: 3.5,
-		maxBounds: [
-			[-172.06707715558082, 15.064032429448638],
-			[-28.673639540108578, 70.89960589653042],
-		],
+		// maxBounds: [
+		// 	[-172.06707715558082, 15.064032429448638],
+		// 	[-28.673639540108578, 70.89960589653042],
+		// ],
 		minZoom: 3,
-		maxZoom: 12,
+		maxZoom: 16,
 	});
 
 	// Add controls
@@ -119,10 +120,6 @@ function makeMap() {
 	// Set up zoom handler
 	const handleZoom = _debounce(() => {
 		zoom.value = map.value.getZoom();
-		const scaleRatio = map.value.getZoom() / 10;
-		document
-			.querySelector(':root')
-			.style.setProperty('--scale-markers-by', scaleRatio);
 	}, 100);
 
 	map.value.on('zoom', handleZoom);
@@ -130,245 +127,379 @@ function makeMap() {
 	// Theme change listener
 	prefersDarkTheme.addEventListener('change', (e) => {
 		map.value.setStyle(e.matches ? MAP_STYLES.dark : MAP_STYLES.light);
+		map.value.once('style.load', () => {
+			// Wait for the composite source to be loaded
+			attachDataSourcesToMap();
+		});
 	});
 }
 
 function attachDataSourcesToMap() {
-	// const { color, fillColor } = handleTheme();
+	const { clusterColor, fillColor, textColor } = handleTheme();
 
-	// Process GeoJSON data with data sources
-	// TODO: No do this work on the vector tile layer instead
-	// countyGeoJson.features = countyGeoJson.features.map((feature) => {
-	// 	dataSources.value.forEach((source) => {
-	// 		if (
-	// 			source.state_iso === STATEFP_TO_ABBR.get(feature.properties.STATEFP) &&
-	// 			source?.county_name?.includes(feature.properties.NAME)
-	// 		) {
-	// 			const { sources } = feature.properties;
-	// 			feature.properties.sources =
-	// 				typeof sources === 'number' ? sources + 1 : 0;
-	// 		} else {
-	// 			feature.properties.sources = feature.properties.sources ?? 0;
-	// 		}
-	// 	});
-	// 	return feature;
-	// });
+	//#region states fill
+	const stateLayer = map.value
+		.getStyle()
+		.layers.find(
+			(layer) =>
+				layer['source-layer'] === 'us_states_shp-d71mca' &&
+				layer.type === 'fill',
+		);
+	const stateLayerId = stateLayer?.id;
 
-	// Process state GeoJSON
-	// TODO: No do this work on the vector tile layer instead
-	// stateGeoJson.features = stateGeoJson.features.map((feature) => {
-	// 	dataSources.value.forEach((source) => {
-	// 		if (source.state_iso === feature.id) {
-	// 			const { sources } = feature.properties;
-	// 			feature.properties.sources =
-	// 				typeof sources === 'number' ? sources + 1 : 0;
-	// 		}
-	// 	});
-	// 	return feature;
-	// });
-
-	map.value.loadImage(
-		'https://docs.mapbox.com/mapbox-gl-js/assets/custom_marker.png',
-		(error, image) => {
-			if (error) throw error;
-			map.value.addImage('custom-marker', image);
-
-			const markerPoints = props.dataSources.map((source) => {
-				return {
-					type: 'Feature',
-					geometry: {
-						type: 'Point',
-						coordinates: [source.lng, source.lat],
-					},
-					properties: {
-						title: source.agency_name,
-					},
-				};
-			});
-
-			map.value.addSource('markers', {
-				type: 'geojson',
-				data: {
-					type: 'FeatureCollection',
-					features: markerPoints,
+	if (stateLayerId) {
+		const stateCounts = {};
+		props.dataSources.forEach((source) => {
+			if (source.state_iso) {
+				stateCounts[source.state_iso] =
+					(stateCounts[source.state_iso] || 0) + 1;
+			}
+		});
+		// Set feature state for each state
+		Object.entries(stateCounts).forEach(([stateIso, count]) => {
+			const id = STATE_ISO_TO_FEATURE_ID.get(stateIso);
+			map.value.setFeatureState(
+				{
+					source: 'composite',
+					sourceLayer: 'us_states_shp-d71mca',
+					id: id,
 				},
-				cluster: true,
-				clusterMaxZoom: 8,
-				clusterRadius: 50,
-			});
+				{
+					source_count: count,
+				},
+			);
+		});
 
-			map.value.addLayer({
-				id: 'clusters',
-				type: 'circle',
-				source: 'markers',
-				filter: ['has', 'point_count'],
+		const { minzoom: minzoomState, maxzoom: maxzoomState } = stateLayer;
+		map.value.addLayer(
+			{
+				id: 'state-fills',
+				source: 'composite',
+				'source-layer': 'us_states_shp-d71mca',
+				type: 'fill',
+				minzoom: minzoomState,
+				maxzoom: maxzoomState ?? 22,
 				paint: {
-					'circle-color': [
-						'step',
-						['get', 'point_count'],
-						'#51bbd6',
+					'fill-color': fillColor,
+					'fill-opacity': [
+						'interpolate',
+						['linear'],
+						['coalesce', ['feature-state', 'source_count'], 0],
+						0,
+						0,
+						1,
+						0.1,
+						10,
+						0.2,
+						25,
+						0.3,
+						50,
+						0.4,
+						75,
+						0.5,
 						100,
-						'#f1f075',
-						750,
-						'#f28cb1',
-					],
-					'circle-radius': [
-						'step',
-						['get', 'point_count'],
-						20,
-						100,
-						30,
-						750,
-						40,
+						0.6,
+						200,
+						0.7,
+						300,
+						0.8,
 					],
 				},
-			});
+			},
+			stateLayerId,
+		);
+	}
+	//#endregion states
 
-			map.value.addLayer({
-				id: 'cluster-count',
-				type: 'symbol',
-				source: 'markers',
-				filter: ['has', 'point_count'],
-				layout: {
-					'text-field': ['get', 'point_count_abbreviated'],
-					'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
-					'text-size': 12,
+	//#region counties fill
+
+	const countyLayer = map.value
+		.getStyle()
+		.layers.find(
+			(layer) =>
+				layer['source-layer'] === 'us_counties_shp-9dia4a' &&
+				layer.type === 'fill',
+		);
+	const countyLayerId = countyLayer?.id;
+
+	if (countyLayerId) {
+		const countyFeatures = map.value.querySourceFeatures('composite', {
+			sourceLayer: 'us_counties_shp-9dia4a',
+		});
+
+		// 2. Create lookup map and verify keys
+		const countyLookup = new Map();
+		countyFeatures.forEach((feature) => {
+			const key = `${feature.properties.NAME}_${feature.properties.STATE}`;
+			countyLookup.set(key, feature);
+		});
+
+		// 3. Create and verify county counts
+		const countyCounts = {};
+		props.dataSources.forEach((source) => {
+			if (source.county_name && source.state_iso) {
+				const stateFips = STATE_ISO_TO_FIPS.get(source.state_iso);
+				const countyKey = `${source.county_name}_${stateFips}`;
+				countyCounts[countyKey] = (countyCounts[countyKey] || 0) + 1;
+			}
+		});
+
+		// 4. Verify feature state setting
+		Object.entries(countyCounts).forEach(([countyKey, count]) => {
+			const countyFeature = countyLookup.get(countyKey);
+			if (countyFeature) {
+				map.value.setFeatureState(
+					{
+						source: 'composite',
+						sourceLayer: 'us_counties_shp-9dia4a',
+						id: countyFeature.id,
+					},
+					{
+						source_count: count,
+					},
+				);
+			}
+		});
+		const { minzoom: minzoomCounty, maxzoom: maxzoomCounty } = countyLayer;
+		map.value.addLayer({
+			id: 'county-fills',
+			source: 'composite',
+			'source-layer': 'us_counties_shp-9dia4a',
+			type: 'fill',
+			minzoom: minzoomCounty,
+			maxzoom: maxzoomCounty ?? 22,
+			paint: {
+				'fill-color': fillColor,
+				'fill-opacity': [
+					'interpolate',
+					['linear'],
+					['coalesce', ['feature-state', 'source_count'], 0],
+					0,
+					0,
+					1,
+					0.1,
+					5,
+					0.2,
+					10,
+					0.3,
+					20,
+					0.4,
+					30,
+					0.5,
+					50,
+					0.6,
+					75,
+					0.7,
+					100,
+					0.8,
+					150,
+					0.9,
+					200,
+					1,
+				],
+			},
+		});
+	}
+
+	//#endregion counties fill
+
+	//#region markers and clusters
+	map.value.loadImage(location, (error, image) => {
+		if (error) throw error;
+		map.value.addImage('custom-marker', image);
+
+		const markerPoints = props.dataSources.map((source) => {
+			return {
+				type: 'Feature',
+				geometry: {
+					type: 'Point',
+					coordinates: [source.lng, source.lat],
 				},
+				properties: {
+					title: source.agency_name,
+				},
+			};
+		});
+
+		map.value.addSource('markers', {
+			type: 'geojson',
+			data: {
+				type: 'FeatureCollection',
+				features: markerPoints,
+			},
+			cluster: true,
+			clusterMaxZoom: 8,
+			clusterRadius: 50,
+		});
+
+		map.value.addLayer({
+			id: 'clusters',
+			type: 'circle',
+			source: 'markers',
+			filter: ['has', 'point_count'],
+			paint: {
+				'circle-color': clusterColor,
+				'circle-opacity': [
+					'step',
+					['get', 'point_count'],
+					0.5,
+					1,
+					0.6,
+					10,
+					0.7,
+					20,
+					0.8,
+					30,
+					0.9,
+					50,
+					1,
+				],
+				'circle-radius': ['step', ['get', 'point_count'], 20, 100, 30, 750, 40],
+				'circle-stroke-width': 1,
+				'circle-stroke-color': textColor,
+			},
+		});
+
+		map.value.addLayer({
+			id: 'cluster-count',
+			type: 'symbol',
+			source: 'markers',
+			filter: ['has', 'point_count'],
+			layout: {
+				'text-field': ['get', 'point_count_abbreviated'],
+				'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+				'text-size': 12,
+			},
+		});
+
+		// inspect a cluster on click
+		map.value.on('click', 'clusters', (e) => {
+			const features = map.value.queryRenderedFeatures(e.point, {
+				layers: ['clusters'],
 			});
+			const clusterId = features[0].properties.cluster_id;
+			map.value
+				.getSource('markers')
+				.getClusterExpansionZoom(clusterId, (err, zoom) => {
+					if (err) return;
 
-			// inspect a cluster on click
-			map.value.on('click', 'clusters', (e) => {
-				const features = map.value.queryRenderedFeatures(e.point, {
-					layers: ['clusters'],
-				});
-				const clusterId = features[0].properties.cluster_id;
-				map.value
-					.getSource('markers')
-					.getClusterExpansionZoom(clusterId, (err, zoom) => {
-						if (err) return;
-
-						map.value.easeTo({
-							center: features[0].geometry.coordinates,
-							zoom: zoom,
-						});
+					map.value.easeTo({
+						center: features[0].geometry.coordinates,
+						zoom: zoom,
 					});
+				});
+		});
+
+		map.value.addLayer({
+			id: 'unclustered-markers',
+			type: 'symbol',
+			source: 'markers',
+			filter: ['!', ['has', 'point_count']],
+			layout: {
+				'icon-image': 'custom-marker',
+				'icon-size': 0.75,
+				'icon-allow-overlap': true,
+			},
+		});
+
+		map.value.addLayer({
+			id: 'unclustered-markers-label',
+			type: 'symbol',
+			source: 'markers',
+			minzoom: 3,
+			filter: ['!', ['has', 'point_count']],
+			layout: {
+				'text-allow-overlap': true,
+				'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+				'text-size': 14,
+				'text-field': ['get', 'title'],
+				'text-offset': [0, 1.25],
+				'text-anchor': 'top',
+			},
+			paint: {
+				'text-color': 'rgb(255,255,255)',
+				'text-halo-width': 2,
+				'text-halo-color': 'rgb(0,0,0)',
+			},
+		});
+
+		map.value.on('mouseenter', 'clusters', () => {
+			map.value.getCanvas().style.cursor = 'pointer';
+		});
+		map.value.on('mouseleave', 'clusters', () => {
+			map.value.getCanvas().style.cursor = '';
+		});
+	});
+	//#endregion markers and clusters
+
+	//#region zoom handlers
+	// State click handler
+	map.value.on('click', 'states', (e) => {
+		if (!e.features[0].geometry) return;
+
+		const bounds = new mapboxgl.LngLatBounds();
+
+		e.features[0].geometry.coordinates.forEach((ring) => {
+			// Handle first ring of coordinates for MultiPolygon
+			if (Array.isArray(ring[0][0])) {
+				ring[0].forEach((coord) => {
+					bounds.extend(coord);
+				});
+			} else {
+				// Handle single polygon
+				ring.forEach((coord) => {
+					bounds.extend(coord);
+				});
+			}
+		});
+
+		map.value.fitBounds(bounds, {
+			padding: { top: 50, bottom: 50, left: 50, right: 50 },
+			linear: true,
+			maxZoom: 6, // Limit zoom level for states
+		});
+	});
+
+	// County click handler
+	map.value.on('click', 'counties', (e) => {
+		if (!e.features[0].geometry) return;
+
+		const bounds = new mapboxgl.LngLatBounds();
+
+		const geometry = e.features[0].geometry;
+		if (geometry.type === 'MultiPolygon') {
+			geometry.coordinates.forEach((polygon) => {
+				polygon[0].forEach((coord) => {
+					bounds.extend(coord);
+				});
 			});
-
-			map.value.addLayer({
-				id: 'unclustered-markers',
-				type: 'symbol',
-				source: 'markers',
-				filter: ['!', ['has', 'point_count']],
-				layout: {
-					'icon-image': 'custom-marker',
-					'icon-size': 0.5,
-					'icon-allow-overlap': true,
-				},
+		} else {
+			geometry.coordinates[0].forEach((coord) => {
+				bounds.extend(coord);
 			});
+		}
 
-			map.value.addLayer({
-				id: 'unclustered-markers-label',
-				type: 'symbol',
-				source: 'markers',
-				minzoom: 10,
-				filter: ['!', ['has', 'point_count']],
-				layout: {
-					'text-allow-overlap': true,
-					'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
-					'text-size': 10,
-					'text-field': ['get', 'title'],
-					'text-offset': [0, 1.25],
-					'text-anchor': 'top',
-				},
-				paint: {
-					'text-color': 'rgb(255,255,255)',
-					'text-halo-width': 2,
-					'text-halo-color': 'rgb(0,0,0)',
-				},
-			});
+		map.value.fitBounds(bounds, {
+			padding: 20,
+			linear: true,
+			// Remove maxZoom to let the bounds determine the zoom level
+		});
+	});
 
-			map.value.on('mouseenter', 'clusters', () => {
-				map.value.getCanvas().style.cursor = 'pointer';
-			});
-			map.value.on('mouseleave', 'clusters', () => {
-				map.value.getCanvas().style.cursor = '';
-			});
-		},
-	);
+	// Add cursor style changes for better UX
+	['states', 'counties'].forEach((layer) => {
+		map.value.on('mouseenter', layer, () => {
+			map.value.getCanvas().style.cursor = 'pointer';
+		});
 
-	// const firstSymbolId = dataSourceMap.value
-	// 	.getStyle()
-	// 	.layers.filter((layer) => layer.type === 'symbol')
-	// 	.reverse()
-	// 	.reduce((_, cur) => cur.id, '');
-
-	// Add layers
-	// TODO: Base this on the vector tile layer instead of geojson
-	// dataSourceMap.value.addLayer(
-	// 	{
-	// 		id: 'county-fills',
-	// 		type: 'fill',
-	// 		source: 'counties',
-	// 		layout: {},
-	// 		minzoom: 5,
-	// 		// maxzoom: 7,
-	// 		paint: {
-	// 			'fill-color': fillColor,
-	// 			'fill-opacity': {
-	// 				property: 'sources',
-	// 				stops: [
-	// 					[0, 0],
-	// 					[1, 0.4],
-	// 					[5, 0.5],
-	// 					[10, 0.6],
-	// 					[25, 0.7],
-	// 					[50, 0.8],
-	// 					[100, 0.9],
-	// 					[200, 1],
-	// 				],
-	// 			},
-	// 		},
-	// 	},
-	// 	firstSymbolId,
-	// );
-
-	// TODO: Base this on the vector tile layer instead of geojson
-	// dataSourceMap.value.addLayer(
-	// 	{
-	// 		id: 'state-fills',
-	// 		type: 'fill',
-	// 		source: 'states',
-	// 		layout: {},
-	// 		maxzoom: 5,
-
-	// 		paint: {
-	// 			'fill-color': fillColor,
-	// 			'fill-opacity': {
-	// 				property: 'sources',
-	// 				// TODO: get steps dynamically based on highest and lowest number of data-sources?
-	// 				stops: [
-	// 					[0, 0],
-	// 					[10, 0.1],
-	// 					[25, 0.2],
-	// 					[50, 0.3],
-	// 					[100, 0.4],
-	// 					[200, 0.5],
-	// 					[300, 0.6],
-	// 					[400, 0.7],
-	// 					// [80, 0.8],
-	// 					// [90, 0.9],
-	// 					// [100, 1],
-	// 				],
-	// 			},
-	// 		},
-	// 	},
-	// 	firstSymbolId,
-	// );
-
-	console.log('layers', map.value.getStyle().layers);
+		map.value.on('mouseleave', layer, () => {
+			map.value.getCanvas().style.cursor = '';
+		});
+	});
+	//#endregion zoom handlers
 }
 
-// Helpers
+//#region helpers
 function handleTheme() {
 	const prefersDarkTheme = window.matchMedia('(prefers-color-scheme: dark)');
 	return {
@@ -376,7 +507,12 @@ function handleTheme() {
 		fillColor: prefersDarkTheme.matches
 			? 'rgb(223, 214, 222)'
 			: 'rgb(19, 9, 18)',
-		color: prefersDarkTheme.matches ? 'rgb(255, 253, 253)' : 'rgb(34, 34, 34)',
+		textColor: prefersDarkTheme.matches
+			? 'rgb(255, 253, 253)'
+			: 'rgb(34, 34, 34)',
+		clusterColor: prefersDarkTheme.matches
+			? 'rgb(223, 214, 222)'
+			: 'rgb(223, 214, 222)',
 		mapTheme: prefersDarkTheme.matches ? MAP_STYLES.dark : MAP_STYLES.light,
 	};
 }
@@ -450,13 +586,10 @@ function updateLoadingText() {
 // 		dataSourceMap.value.on('dragstart', clearHighlight);
 // 	}
 // }
+//#endregion helpers
 </script>
 
 <style>
-:root {
-	--scale-markers-by: 1;
-}
-
 .mapboxgl-ctrl-attrib {
 	display: none;
 }
