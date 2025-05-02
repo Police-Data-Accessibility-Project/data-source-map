@@ -25,6 +25,7 @@ import { Spinner } from 'pdap-design-system';
 // import stateGeoJson from '../util/geoJSON/states.json';
 import { STATE_ISO_TO_FEATURE_ID, STATE_ISO_TO_FIPS } from '../util/constants';
 import marker from '../assets/location.png';
+import _isEqual from 'lodash/isEqual';
 
 const MAP_STYLES = {
 	dark: 'mapbox://styles/josh-pdap/clyejn3bg014x01nzg6786ozv?optimize=true',
@@ -49,7 +50,7 @@ const props = defineProps({
 // Reactive vars
 const currentData = computed(() => props.data);
 const map = ref();
-const isLoading = computed(() => !Object.keys(props?.data ?? {}).length);
+const isLoading = computed(() => !Object.keys(currentData.value ?? {}).length);
 const isMapReady = ref(false);
 const loadingText = ref('Data sources loading...');
 const size = ref(window.innerHeight / 15);
@@ -66,7 +67,7 @@ onMounted(async () => {
 	});
 
 	// Now that map is ready, try to attach initial data
-	if (currentData.value?.length) {
+	if (currentData.value) {
 		try {
 			attachDataSourcesToMap();
 		} catch (error) {
@@ -76,9 +77,9 @@ onMounted(async () => {
 });
 
 watch(
-	() => props.data,
-	(newSources, prevSources) => {
-		if (isMapReady.value && newSources?.length !== prevSources?.length) {
+	() => currentData.value,
+	(newData, prevData) => {
+		if (isMapReady.value && !_isEqual(newData, prevData)) {
 			attachDataSourcesToMap();
 		}
 	},
@@ -149,7 +150,7 @@ function attachDataSourcesToMap() {
 
 	if (stateLayerId) {
 		// Set feature state for each state
-		props.data.states.forEach(
+		currentData.value.states.forEach(
 			({ state_iso: stateIso, source_count: count }) => {
 				const id = STATE_ISO_TO_FEATURE_ID.get(stateIso);
 
@@ -232,7 +233,7 @@ function attachDataSourcesToMap() {
 			countyLookup.set(key, feature);
 		});
 
-		props.data.counties.forEach((county) => {
+		currentData.value.counties.forEach((county) => {
 			const stateFips = STATE_ISO_TO_FIPS.get(county.state_iso);
 			const countyKey = `${county.name}_${stateFips}`;
 			const countyFeature = countyLookup.get(countyKey);
@@ -299,7 +300,7 @@ function attachDataSourcesToMap() {
 		if (error) throw error;
 		map.value.addImage('custom-marker', image);
 
-		const markerPoints = props.data.localities
+		const markerPoints = currentData.value.localities
 			// .filter((muni) => muni.source_count)
 			.map((muni) => {
 				return {
