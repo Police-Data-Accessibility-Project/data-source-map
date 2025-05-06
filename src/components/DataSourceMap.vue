@@ -303,9 +303,6 @@ function attachDataSourcesToMap() {
 				],
 			},
 		});
-
-		// Update feature states when the map moves or zooms
-		// map.value.on('moveend', updateCountyFeatureStates);
 	}
 
 	//#endregion counties fill
