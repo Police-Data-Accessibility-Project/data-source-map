@@ -24,8 +24,11 @@ import { Spinner } from 'pdap-design-system';
 // import countyGeoJson from '../util/geoJSON/counties.json';
 // import stateGeoJson from '../util/geoJSON/states.json';
 import { STATE_ISO_TO_FEATURE_ID, STATE_ISO_TO_FIPS } from '../util/constants';
-import location from '../assets/location.png';
+import marker from '../assets/location.png';
+import _isEqual from 'lodash/isEqual';
 
+const US_COUNTIES_LAYER = 'counties';
+const US_STATES_LAYER = 'us-states-4khti2';
 const MAP_STYLES = {
 	dark: 'mapbox://styles/josh-pdap/clyejn3bg014x01nzg6786ozv?optimize=true',
 	light: 'mapbox://styles/josh-pdap/clyejn7qx017601qoa3bo8wni?optimize=true',
@@ -36,8 +39,8 @@ mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
 // Props
 const props = defineProps({
-	dataSources: {
-		type: Array,
+	data: {
+		type: Object,
 		required: true,
 	},
 	error: {
@@ -47,13 +50,14 @@ const props = defineProps({
 });
 
 // Reactive vars
-const currentDataSources = computed(() => props.dataSources);
+const currentData = computed(() => props.data);
 const map = ref();
-const isLoading = computed(() => !props.dataSources?.length);
+const isLoading = computed(() => !Object.keys(currentData.value ?? {}).length);
 const isMapReady = ref(false);
 const loadingText = ref('Data sources loading...');
 const size = ref(window.innerHeight / 15);
 const zoom = ref(3.5);
+const countyLookup = ref(new Map());
 
 onMounted(async () => {
 	updateLoadingText();
@@ -66,7 +70,7 @@ onMounted(async () => {
 	});
 
 	// Now that map is ready, try to attach initial data
-	if (currentDataSources.value?.length) {
+	if (currentData.value) {
 		try {
 			attachDataSourcesToMap();
 		} catch (error) {
@@ -76,9 +80,9 @@ onMounted(async () => {
 });
 
 watch(
-	() => props.dataSources,
-	(newSources, prevSources) => {
-		if (isMapReady.value && newSources?.length !== prevSources?.length) {
+	() => currentData.value,
+	(newData, prevData) => {
+		if (isMapReady.value && !_isEqual(newData, prevData)) {
 			attachDataSourcesToMap();
 		}
 	},
@@ -96,7 +100,7 @@ function makeMap() {
 		container: 'mapboxContainer',
 		style,
 		center: [-98, 36],
-		zoom: 3.5,
+		zoom: 3,
 		// maxBounds: [
 		// 	[-172.06707715558082, 15.064032429448638],
 		// 	[-28.673639540108578, 70.89960589653042],
@@ -126,59 +130,57 @@ function makeMap() {
 
 	// Theme change listener
 	prefersDarkTheme.addEventListener('change', (e) => {
+		console.debug('map: theme change');
 		map.value.setStyle(e.matches ? MAP_STYLES.dark : MAP_STYLES.light);
 		map.value.once('style.load', () => {
-			// Wait for the composite source to be loaded
 			attachDataSourcesToMap();
 		});
 	});
 }
 
 function attachDataSourcesToMap() {
-	const { clusterColor, fillColor, textColor } = handleTheme();
+	const { fillColor, textColor, prefersDarkTheme } = handleTheme();
 
 	//#region states fill
 	const stateLayer = map.value
 		.getStyle()
 		.layers.find(
 			(layer) =>
-				layer['source-layer'] === 'us_states_shp-d71mca' &&
-				layer.type === 'fill',
+				layer['source-layer'] === US_STATES_LAYER && layer.type === 'fill',
 		);
 	const stateLayerId = stateLayer?.id;
 
 	if (stateLayerId) {
-		const stateCounts = {};
-		props.dataSources.forEach((source) => {
-			if (source.state_iso) {
-				stateCounts[source.state_iso] =
-					(stateCounts[source.state_iso] || 0) + 1;
-			}
-		});
 		// Set feature state for each state
-		Object.entries(stateCounts).forEach(([stateIso, count]) => {
-			const id = STATE_ISO_TO_FEATURE_ID.get(stateIso);
-			map.value.setFeatureState(
-				{
-					source: 'composite',
-					sourceLayer: 'us_states_shp-d71mca',
-					id: id,
-				},
-				{
-					source_count: count,
-				},
-			);
-		});
+		currentData.value.states.forEach(
+			({ state_iso: stateIso, source_count: count }) => {
+				const id = STATE_ISO_TO_FEATURE_ID.get(stateIso);
 
-		const { minzoom: minzoomState, maxzoom: maxzoomState } = stateLayer;
+				if (id) {
+					map.value.setFeatureState(
+						{
+							source: 'composite',
+							sourceLayer: US_STATES_LAYER,
+							id: id,
+						},
+						{
+							source_count: count,
+						},
+					);
+				} else {
+					console.warn('No id found for state', { stateIso, count });
+				}
+			},
+		);
+
 		map.value.addLayer(
 			{
 				id: 'state-fills',
 				source: 'composite',
-				'source-layer': 'us_states_shp-d71mca',
+				'source-layer': US_STATES_LAYER,
 				type: 'fill',
-				minzoom: minzoomState,
-				maxzoom: maxzoomState ?? 22,
+				minzoom: stateLayer.minzoom, // Preserve zoom settings from source
+				maxzoom: stateLayer.maxzoom,
 				paint: {
 					'fill-color': fillColor,
 					'fill-opacity': [
@@ -212,62 +214,64 @@ function attachDataSourcesToMap() {
 	//#endregion states
 
 	//#region counties fill
-
 	const countyLayer = map.value
 		.getStyle()
 		.layers.find(
 			(layer) =>
-				layer['source-layer'] === 'us_counties_shp-9dia4a' &&
-				layer.type === 'fill',
+				layer['source-layer'] === US_COUNTIES_LAYER && layer.type === 'fill',
 		);
 	const countyLayerId = countyLayer?.id;
+	// Create a function to update county feature states for the current viewport
+
+	// Only run this at zoom levels where counties are visible
+	// const currentZoom = map.value.getZoom();
+	// if (currentZoom < countyLayer.minzoom) {
+	// 	console.log(
+	// 		`Current zoom ${currentZoom} is below county minzoom ${countyLayer.minzoom}, skipping update`,
+	// 	);
+	// 	return;
+	// }
+
+	// Query counties in the current viewport
+	const countyFeatures = map.value.querySourceFeatures('composite', {
+		sourceLayer: US_COUNTIES_LAYER,
+	});
+
+	countyFeatures.forEach((feat) => {
+		if (!countyLookup.value.get(feat.properties.id))
+			countyLookup.value.set(feat.properties.id, feat);
+	});
+
+	// Create lookup map
+	// Set feature states for counties in the current viewport
+	currentData.value.counties.forEach((county) => {
+		const stateFips = STATE_ISO_TO_FIPS.get(county.state_iso);
+		const countyFeatureLookupId = `${county.name.toLowerCase()}_${stateFips}`;
+		const countyFeatureId = countyLookup.value.get(countyFeatureLookupId)?.id;
+
+		if (countyFeatureId) {
+			map.value.setFeatureState(
+				{
+					source: 'composite',
+					sourceLayer: US_COUNTIES_LAYER,
+					id: countyFeatureId,
+				},
+				{
+					source_count: county.source_count,
+				},
+			);
+		}
+	});
 
 	if (countyLayerId) {
-		const countyFeatures = map.value.querySourceFeatures('composite', {
-			sourceLayer: 'us_counties_shp-9dia4a',
-		});
-
-		// 2. Create lookup map and verify keys
-		const countyLookup = new Map();
-		countyFeatures.forEach((feature) => {
-			const key = `${feature.properties.NAME}_${feature.properties.STATE}`;
-			countyLookup.set(key, feature);
-		});
-
-		// 3. Create and verify county counts
-		const countyCounts = {};
-		props.dataSources.forEach((source) => {
-			if (source.county_name && source.state_iso) {
-				const stateFips = STATE_ISO_TO_FIPS.get(source.state_iso);
-				const countyKey = `${source.county_name}_${stateFips}`;
-				countyCounts[countyKey] = (countyCounts[countyKey] || 0) + 1;
-			}
-		});
-
-		// 4. Verify feature state setting
-		Object.entries(countyCounts).forEach(([countyKey, count]) => {
-			const countyFeature = countyLookup.get(countyKey);
-			if (countyFeature) {
-				map.value.setFeatureState(
-					{
-						source: 'composite',
-						sourceLayer: 'us_counties_shp-9dia4a',
-						id: countyFeature.id,
-					},
-					{
-						source_count: count,
-					},
-				);
-			}
-		});
-		const { minzoom: minzoomCounty, maxzoom: maxzoomCounty } = countyLayer;
+		// Add the county fills layer without setting feature states yet
 		map.value.addLayer({
 			id: 'county-fills',
 			source: 'composite',
-			'source-layer': 'us_counties_shp-9dia4a',
+			'source-layer': US_COUNTIES_LAYER,
 			type: 'fill',
-			minzoom: minzoomCounty,
-			maxzoom: maxzoomCounty ?? 22,
+			minzoom: countyLayer.minzoom,
+			maxzoom: countyLayer.maxzoom ?? 22,
 			paint: {
 				'fill-color': fillColor,
 				'fill-opacity': [
@@ -303,134 +307,152 @@ function attachDataSourcesToMap() {
 
 	//#endregion counties fill
 
-	//#region markers and clusters
-	map.value.loadImage(location, (error, image) => {
+	//#region locality points
+	map.value.loadImage(marker, (error, image) => {
 		if (error) throw error;
 		map.value.addImage('custom-marker', image);
 
-		const markerPoints = props.dataSources.map((source) => {
-			return {
-				type: 'Feature',
-				geometry: {
-					type: 'Point',
-					coordinates: [source.lng, source.lat],
-				},
-				properties: {
-					title: source.agency_name,
-				},
-			};
-		});
-
+		const markerPoints = currentData.value.localities
+			// .filter((muni) => muni.source_count)
+			.map((muni) => {
+				// Important: Mapbox GL expects GeoJSON coordinates in [longitude, latitude] order
+				// No projection transformation needed - Mapbox handles this internally
+				return {
+					type: 'Feature',
+					geometry: {
+						type: 'Point',
+						coordinates: [muni.coordinates.lng, muni.coordinates.lat],
+					},
+					properties: {
+						title: muni.name,
+						source_count: muni.source_count,
+					},
+				};
+			});
 		map.value.addSource('markers', {
 			type: 'geojson',
 			data: {
 				type: 'FeatureCollection',
 				features: markerPoints,
 			},
-			cluster: true,
-			clusterMaxZoom: 8,
-			clusterRadius: 50,
 		});
 
 		map.value.addLayer({
-			id: 'clusters',
-			type: 'circle',
+			id: 'muni-markers',
+			type: 'symbol',
 			source: 'markers',
-			filter: ['has', 'point_count'],
+			minzoom: 7,
+			filter: ['!', ['has', 'point_count']],
+			layout: {
+				'icon-image': 'custom-marker',
+				'icon-size': [
+					'interpolate',
+					['linear'],
+					['zoom'],
+					7,
+					0.4, // smaller at zoom level 7
+					8,
+					0.6, // medium at zoom level 10
+					9,
+					1.0, // larger at zoom level 13
+				],
+				'icon-allow-overlap': true,
+			},
 			paint: {
-				'circle-color': clusterColor,
-				'circle-opacity': [
-					'step',
-					['get', 'point_count'],
-					0.5,
+				'icon-opacity': [
+					'interpolate',
+					['linear'],
+					['get', 'source_count'],
+					0,
+					0.3,
 					1,
 					0.6,
 					10,
 					0.7,
-					20,
+					25,
 					0.8,
-					30,
-					0.9,
 					50,
+					0.9,
+					75,
 					1,
 				],
-				'circle-radius': ['step', ['get', 'point_count'], 20, 100, 30, 750, 40],
-				'circle-stroke-width': 1,
-				'circle-stroke-color': textColor,
 			},
 		});
 
 		map.value.addLayer({
-			id: 'cluster-count',
+			id: 'muni-markers-label-with-sources',
 			type: 'symbol',
 			source: 'markers',
-			filter: ['has', 'point_count'],
+			minzoom: 7,
+			filter: ['>', ['get', 'source_count'], 0],
 			layout: {
-				'text-field': ['get', 'point_count_abbreviated'],
-				'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
-				'text-size': 12,
-			},
-		});
-
-		// inspect a cluster on click
-		map.value.on('click', 'clusters', (e) => {
-			const features = map.value.queryRenderedFeatures(e.point, {
-				layers: ['clusters'],
-			});
-			const clusterId = features[0].properties.cluster_id;
-			map.value
-				.getSource('markers')
-				.getClusterExpansionZoom(clusterId, (err, zoom) => {
-					if (err) return;
-
-					map.value.easeTo({
-						center: features[0].geometry.coordinates,
-						zoom: zoom,
-					});
-				});
-		});
-
-		map.value.addLayer({
-			id: 'unclustered-markers',
-			type: 'symbol',
-			source: 'markers',
-			filter: ['!', ['has', 'point_count']],
-			layout: {
-				'icon-image': 'custom-marker',
-				'icon-size': 0.75,
-				'icon-allow-overlap': true,
-			},
-		});
-
-		map.value.addLayer({
-			id: 'unclustered-markers-label',
-			type: 'symbol',
-			source: 'markers',
-			minzoom: 3,
-			filter: ['!', ['has', 'point_count']],
-			layout: {
-				'text-allow-overlap': true,
+				'text-allow-overlap': false,
 				'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
 				'text-size': 14,
-				'text-field': ['get', 'title'],
+				'text-field': [
+					'concat',
+					['get', 'title'],
+					'\n',
+					['get', 'source_count'],
+					['case', ['==', ['get', 'source_count'], 1], ' source', ' sources'],
+				],
+
 				'text-offset': [0, 1.25],
 				'text-anchor': 'top',
 			},
 			paint: {
-				'text-color': 'rgb(255,255,255)',
-				'text-halo-width': 2,
-				'text-halo-color': 'rgb(0,0,0)',
+				'text-color': textColor,
+				'text-opacity': [
+					'interpolate',
+					['linear'],
+					['get', 'source_count'],
+					0,
+					0.3,
+					1,
+					0.6,
+					10,
+					0.7,
+					25,
+					0.8,
+					50,
+					0.9,
+					75,
+					1,
+				],
+				'text-halo-width': 1,
+				'text-halo-color': prefersDarkTheme ? 'rgb(0,0,0)' : 'rgb(255,255,255)',
 			},
 		});
+		map.value.addLayer({
+			id: 'muni-markers-label-without-sources',
+			type: 'symbol',
+			source: 'markers',
+			minzoom: 10.5,
+			filter: ['==', ['get', 'source_count'], 0],
+			layout: {
+				'text-allow-overlap': false,
+				'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+				'text-size': 14,
+				'text-field': [
+					'concat',
+					['get', 'title'],
+					'\n',
+					['get', 'source_count'],
+					['case', ['==', ['get', 'source_count'], 1], ' source', ' sources'],
+				],
 
-		map.value.on('mouseenter', 'clusters', () => {
-			map.value.getCanvas().style.cursor = 'pointer';
-		});
-		map.value.on('mouseleave', 'clusters', () => {
-			map.value.getCanvas().style.cursor = '';
+				'text-offset': [0, 1.25],
+				'text-anchor': 'top',
+			},
+			paint: {
+				'text-color': textColor,
+				'text-opacity': 0.3,
+				'text-halo-width': 1,
+				'text-halo-color': prefersDarkTheme ? 'rgb(0,0,0)' : 'rgb(255,255,255)',
+			},
 		});
 	});
-	//#endregion markers and clusters
+	//#endregion locality points
 
 	//#region zoom handlers
 	// State click handler
@@ -479,10 +501,10 @@ function attachDataSourcesToMap() {
 			});
 		}
 
+		// Perform the zoom
 		map.value.fitBounds(bounds, {
-			padding: 20,
+			padding: { top: 50, bottom: 50, left: 50, right: 50 },
 			linear: true,
-			// Remove maxZoom to let the bounds determine the zoom level
 		});
 	});
 
@@ -507,12 +529,7 @@ function handleTheme() {
 		fillColor: prefersDarkTheme.matches
 			? 'rgb(223, 214, 222)'
 			: 'rgb(19, 9, 18)',
-		textColor: prefersDarkTheme.matches
-			? 'rgb(255, 253, 253)'
-			: 'rgb(34, 34, 34)',
-		clusterColor: prefersDarkTheme.matches
-			? 'rgb(223, 214, 222)'
-			: 'rgb(223, 214, 222)',
+		textColor: 'rgb(255, 253, 253)',
 		mapTheme: prefersDarkTheme.matches ? MAP_STYLES.dark : MAP_STYLES.light,
 	};
 }

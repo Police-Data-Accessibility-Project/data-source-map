@@ -1,39 +1,35 @@
 <template>
 	<main>
-		<DataSourceMap :data-sources="dataSources" :error="error" />
+		<DataSourceMap :data="data" :error="error" />
 	</main>
 </template>
 
 <script setup>
 import DataSourceMap from '../components/DataSourceMap.vue';
 import { ref, onMounted } from 'vue';
-import recordTypesToDisplay from '../util/recordTypesToDisplay';
 import axios from 'axios';
 
-const PDAP_DATA_SOURCE_SEARCH =
-	import.meta.env.VITE_API_URL + '/map/data-sources';
+const PDAP_DATA_SOURCE_SEARCH = import.meta.env.VITE_API_URL + '/map/locations';
 
-const dataSources = ref([]);
+const data = ref([]);
 const error = ref(undefined);
 
-function filterByRecords(source) {
-	return recordTypesToDisplay.has(source.record_type);
-}
-
 onMounted(async () => {
-	await loadDataSources();
+	await loadData();
 });
 
-async function loadDataSources() {
-	dataSources.value = await fetchDataSourceData()
-		.then((data) => data.data.data.filter(filterByRecords))
+async function loadData() {
+	data.value = await fetchLocationData()
+		.then((data) => {
+			console.debug({ data });
+			return data.data;
+		})
 		.catch((e) => {
 			error.value = e?.message;
 		});
-	console.debug('parent', { dS: dataSources.value });
 }
 
-async function fetchDataSourceData() {
+async function fetchLocationData() {
 	return await axios.get(PDAP_DATA_SOURCE_SEARCH, {
 		headers: {
 			'Content-Type': 'application/json',
