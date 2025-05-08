@@ -1,6 +1,6 @@
 <template>
 	<main>
-		<DataSourceMapD3 :counties="data.counties" />
+		<DataSourceMapD3 :counties="data.counties" :states="data.states" />
 	</main>
 </template>
 
