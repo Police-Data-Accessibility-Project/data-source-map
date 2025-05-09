@@ -72,8 +72,8 @@ const layers = ref({
 	stateBoundaries: {
 		data: statesGeoJSON,
 		visible: true,
-		minZoom: 3, // Same min zoom as counties
-		maxZoom: Infinity, // Same max zoom as counties
+		minZoom: 3,
+		maxZoom: Infinity,
 	},
 	countyOverlay: {
 		data: countiesGeoJSON,
@@ -222,7 +222,7 @@ function initMap() {
 				width.value - padding.left - padding.right,
 				height.value - padding.top - padding.bottom,
 			],
-			countiesGeoJSON,
+			layers.value.counties.data,
 		);
 
 	path.value = d3.geoPath().projection(projectionObj);
@@ -244,9 +244,6 @@ function initMap() {
 
 // Update the map with current data
 function updateMap() {
-	if (!countiesGeoJSON || !props.counties || props.counties.length === 0)
-		return;
-
 	// Clear previous map if any
 	svg.value.selectAll('*').remove();
 
@@ -293,7 +290,7 @@ function renderCountiesLayer(container) {
 	// Draw counties with choropleth coloring
 	countiesLayer
 		.selectAll('path')
-		.data(countiesGeoJSON.features)
+		.data(layers.value.counties.data.features)
 		.enter()
 		.append('path')
 		.attr('fill', (d) => {
@@ -369,7 +366,7 @@ function renderStateBoundariesLayer(container) {
 	// Draw state boundaries with no fill, just strokes
 	boundariesLayer
 		.selectAll('path')
-		.data(statesGeoJSON.features)
+		.data(layers.value.stateBoundaries.data.features)
 		.enter()
 		.append('path')
 		.attr('fill', 'none')
@@ -435,7 +432,7 @@ function renderStateOverlay(container) {
 		.attr(
 			'd',
 			path.value(
-				statesGeoJSON.features.find(
+				layers.value.stateOverlay.data.features.find(
 					(d) => d.properties.NAME === activeState.name,
 				),
 			),
@@ -457,7 +454,7 @@ function renderStateOverlay(container) {
 	overlayLayer
 		.selectAll('path.active-state-border')
 		.data([
-			statesGeoJSON.features.find(
+			layers.value.stateOverlay.data.features.find(
 				(d) => d.properties.NAME === activeState.name,
 			),
 		])
@@ -515,7 +512,7 @@ function renderCountyOverlay(container) {
 		.attr(
 			'd',
 			path.value(
-				countiesGeoJSON.features.find((d) => {
+				layers.value.countyOverlay.data.features.find((d) => {
 					const fips = d.properties.STATE + d.properties.COUNTY;
 					return fips === activeCounty.fips;
 				}),
@@ -538,7 +535,7 @@ function renderCountyOverlay(container) {
 	overlayLayer
 		.selectAll('path.active-county-border')
 		.data([
-			countiesGeoJSON.features.find((d) => {
+			layers.value.countyOverlay.data.features.find((d) => {
 				const fips = d.properties.STATE + d.properties.COUNTY;
 				return fips === activeCounty.fips;
 			}),
@@ -569,7 +566,7 @@ function renderStatesLayer(container) {
 	// Draw states with choropleth coloring
 	statesLayer
 		.selectAll('path')
-		.data(statesGeoJSON.features)
+		.data(layers.value.states.data.features)
 		.enter()
 		.append('path')
 		.attr('fill', (d) => {
