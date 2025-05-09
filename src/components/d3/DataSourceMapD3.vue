@@ -51,6 +51,7 @@ const tooltip = ref(null);
 const countyColorScale = ref(null);
 const stateColorScale = ref(null);
 const currentTheme = ref(null);
+const activeLocationStack = ref([]); // Stack to track selected locations
 
 // Zoom-related state
 const currentZoom = ref(1);
@@ -74,6 +75,18 @@ const layers = ref({
 		minZoom: 3, // Same min zoom as counties
 		maxZoom: Infinity, // Same max zoom as counties
 	},
+	countyOverlay: {
+		data: countiesGeoJSON,
+		visible: false,
+		minZoom: 3,
+		maxZoom: Infinity,
+	},
+	stateOverlay: {
+		data: statesGeoJSON,
+		visible: false,
+		minZoom: 0,
+		maxZoom: Infinity,
+	},
 });
 
 // Computed property for county data map
@@ -88,6 +101,7 @@ const countyDataMap = computed(() => {
 	}
 	return map;
 });
+
 const stateDataMap = computed(() => {
 	const map = {};
 	if (props.states && props.states.length > 0) {
@@ -99,6 +113,14 @@ const stateDataMap = computed(() => {
 	}
 	return map;
 });
+
+// Computed property to determine the selected location level
+// const selectedLocationLevel = computed(() => {
+// 	if (activeLocationStack.value.length === 0) return null;
+// 	const activeLocation =
+// 		activeLocationStack.value[activeLocationStack.value.length - 1];
+// 	return activeLocation.fips ? 'county' : 'state';
+// });
 
 // Computed property for color scale domain
 // const colorDomain = computed(() => {
@@ -137,6 +159,13 @@ watch(
 		if (newCounties && newCounties.length > 0 && countiesGeoJSON) {
 			updateMap();
 		}
+	},
+	{ deep: true },
+);
+watch(
+	() => activeLocationStack.value,
+	(newStack) => {
+		console.debug({ newStack });
 	},
 	{ deep: true },
 );
@@ -232,9 +261,14 @@ function updateMap() {
 	// 1. Counties (bottom layer)
 	// 2. State boundaries (middle layer, only outlines)
 	// 3. States (top layer, full choropleth)
+	// 4. Overlay layers (top-most, for highlighting selected features)
 	renderCountiesLayer(mapContainer);
 	renderStateBoundariesLayer(mapContainer);
 	renderStatesLayer(mapContainer);
+
+	// Add overlay layers on top
+	renderCountyOverlay(mapContainer);
+	renderStateOverlay(mapContainer);
 
 	// Update layer visibility based on current zoom
 	updateLayerVisibility();
@@ -338,14 +372,189 @@ function renderStateBoundariesLayer(container) {
 		.data(statesGeoJSON.features)
 		.enter()
 		.append('path')
-		.attr('fill', 'none') // No fill, just boundaries
+		.attr('fill', 'none')
 		.attr('stroke', currentTheme.value.theme.map.stateBorderColor)
-		.attr('stroke-width', 0.5)
+		.attr('stroke-width', 0.4)
 		.attr('d', path.value);
 
 	console.log(
 		'State boundaries layer rendered, visible:',
 		layers.value.stateBoundaries.visible,
+	);
+}
+
+// Render state overlay layer
+function renderStateOverlay(container) {
+	if (
+		!layers.value.stateOverlay.visible ||
+		activeLocationStack.value.length === 0
+	)
+		return;
+
+	const activeState = props.states.find(
+		(state) =>
+			state.state_iso ===
+			activeLocationStack.value[activeLocationStack.value.length - 1].data
+				.state_iso,
+	);
+
+	console.debug({
+		activeState,
+		activeLocationStack: activeLocationStack.value,
+	});
+
+	if (!activeState) return;
+
+	// Remove any existing overlay first to prevent duplicates
+	svg.value.select('.stateOverlay-layer').remove();
+
+	const overlayLayer = container
+		.append('g')
+		.attr('class', 'layer stateOverlay-layer')
+		.style('display', layers.value.stateOverlay.visible ? 'block' : 'none');
+
+	// Create a mask for the active state
+	const maskId = `mask-state-${Date.now()}`; // Use timestamp to ensure uniqueness
+
+	// Add a mask definition
+	const defs = overlayLayer.append('defs');
+	const mask = defs.append('mask').attr('id', maskId);
+
+	// Add a white background to the mask (white = visible area)
+	mask
+		.append('rect')
+		.attr('x', 0)
+		.attr('y', 0)
+		.attr('width', width.value)
+		.attr('height', height.value)
+		.attr('fill', 'white');
+
+	// Add the state shape to the mask in black (black = invisible area)
+	mask
+		.append('path')
+		.attr(
+			'd',
+			path.value(
+				statesGeoJSON.features.find(
+					(d) => d.properties.NAME === activeState.name,
+				),
+			),
+		)
+		.attr('fill', 'black');
+
+	// Add a semi-transparent background that covers everything EXCEPT the active state
+	overlayLayer
+		.append('rect')
+		.attr('x', 0)
+		.attr('y', 0)
+		.attr('width', width.value)
+		.attr('height', height.value)
+		.attr('fill', currentTheme.value.theme.map.overlayColor)
+		.attr('mask', `url(#${maskId})`)
+		.attr('pointer-events', 'none'); // Allow clicks to pass through
+
+	// Add a stroke around the active state
+	overlayLayer
+		.selectAll('path.active-state-border')
+		.data([
+			statesGeoJSON.features.find(
+				(d) => d.properties.NAME === activeState.name,
+			),
+		])
+		.enter()
+		.append('path')
+		.attr('class', 'active-state-border')
+		.attr('fill', 'none') // No fill, just stroke
+		.attr('stroke', currentTheme.value.theme.map.stateBorderColor)
+		.attr('stroke-width', 1)
+		.attr('d', path.value)
+		.attr('pointer-events', 'none'); // Allow clicks to pass through
+
+	console.log('State overlay layer rendered, active state:', activeState.name);
+}
+
+// Render county overlay layer
+function renderCountyOverlay(container) {
+	if (
+		!layers.value.countyOverlay.visible ||
+		activeLocationStack.value.length === 0
+	)
+		return;
+
+	const activeCounty =
+		activeLocationStack.value[activeLocationStack.value.length - 1];
+	if (activeCounty.type !== 'county') return;
+
+	// Remove any existing overlay first to prevent duplicates
+	svg.value.select('.countyOverlay-layer').remove();
+
+	const overlayLayer = container
+		.append('g')
+		.attr('class', 'layer countyOverlay-layer')
+		.style('display', layers.value.countyOverlay.visible ? 'block' : 'none');
+
+	// Create a mask for the active county
+	const maskId = `mask-county-${Date.now()}`; // Use timestamp to ensure uniqueness
+
+	// Add a mask definition
+	const defs = overlayLayer.append('defs');
+	const mask = defs.append('mask').attr('id', maskId);
+
+	// Add a white background to the mask (white = visible area)
+	mask
+		.append('rect')
+		.attr('x', 0)
+		.attr('y', 0)
+		.attr('width', width.value)
+		.attr('height', height.value)
+		.attr('fill', 'white');
+
+	// Add the county shape to the mask in black (black = invisible area)
+	mask
+		.append('path')
+		.attr(
+			'd',
+			path.value(
+				countiesGeoJSON.features.find((d) => {
+					const fips = d.properties.STATE + d.properties.COUNTY;
+					return fips === activeCounty.fips;
+				}),
+			),
+		)
+		.attr('fill', 'black');
+
+	// Add a semi-transparent background that covers everything EXCEPT the active county
+	overlayLayer
+		.append('rect')
+		.attr('x', 0)
+		.attr('y', 0)
+		.attr('width', width.value)
+		.attr('height', height.value)
+		.attr('fill', currentTheme.value.theme.map.overlayColor)
+		.attr('mask', `url(#${maskId})`)
+		.attr('pointer-events', 'none'); // Allow clicks to pass through
+
+	// Add a stroke around the active county
+	overlayLayer
+		.selectAll('path.active-county-border')
+		.data([
+			countiesGeoJSON.features.find((d) => {
+				const fips = d.properties.STATE + d.properties.COUNTY;
+				return fips === activeCounty.fips;
+			}),
+		])
+		.enter()
+		.append('path')
+		.attr('class', 'active-county-border')
+		.attr('fill', 'none') // No fill, just stroke
+		.attr('stroke', currentTheme.value.theme.map.strokeColor)
+		.attr('stroke-width', 0.5)
+		.attr('d', path.value)
+		.attr('pointer-events', 'none'); // Allow clicks to pass through
+
+	console.log(
+		'County overlay layer rendered, active county:',
+		activeCounty.data.name,
 	);
 }
 
@@ -551,7 +760,8 @@ function setupZoom() {
 
 // Handle zoom events
 function handleZoom(event) {
-	console.log('Zoom event triggered, scale:', event.transform.k);
+	// Update overlay visibility before overwriting current zoom
+	handleOverlaysOnZoom(event, currentZoom.value);
 
 	// Store current zoom transform
 	zoomTransform.value = event.transform;
@@ -567,6 +777,41 @@ function handleZoom(event) {
 
 	// Update layer visibility based on zoom level
 	updateLayerVisibility();
+}
+
+function handleOverlaysOnZoom(event, currentZoom) {
+	if (event.transform.k < currentZoom) {
+		const COUNTY_THRESHOLD = 5.25;
+		const STATE_THRESHOLD = 1.25;
+
+		// County overlay
+		if (
+			layers.value.countyOverlay.visible &&
+			event.transform.k < COUNTY_THRESHOLD
+		) {
+			layers.value.countyOverlay.visible = false;
+
+			// Remove overlay layers from DOM
+			svg.value.select('.countyOverlay-layer').remove();
+		}
+
+		// State overlay
+		if (
+			layers.value.stateOverlay.visible &&
+			event.transform.k < STATE_THRESHOLD
+		) {
+			// Update visibility
+			layers.value.stateOverlay.visible = false;
+			layers.value.countyOverlay.visible = false;
+
+			// Remove overlay layers from DOM
+			svg.value.select('.stateOverlay-layer').remove();
+			svg.value.select('.countyOverlay-layer').remove();
+
+			// Clear the active location stack since we're zooming out
+			activeLocationStack.value = [];
+		}
+	}
 }
 
 // Update layer visibility based on zoom level
@@ -637,6 +882,25 @@ function handleStateClick(event, d) {
 
 	const translate = [width.value / 2 - scale * x, height.value / 2 - scale * y];
 
+	// Add state to the active location stack
+	const stateName = d.properties.NAME;
+	const state = props.states.find((s) => s.name === stateName);
+	if (state) {
+		activeLocationStack.value.push({
+			type: 'state',
+			name: stateName,
+			data: state,
+		});
+
+		// Update overlay visibility
+		layers.value.stateOverlay.visible = true;
+
+		// Force update the overlay
+		updateOverlays();
+
+		console.log('Added state to active location stack:', stateName);
+	}
+
 	// Get the stored zoom behavior
 	const zoom = svg.value.__zoom__ || d3.zoom();
 
@@ -673,6 +937,30 @@ function handleCountyClick(event, d) {
 
 	const translate = [width.value / 2 - scale * x, height.value / 2 - scale * y];
 
+	// Add county to the active location stack
+	let fips;
+	if (d.properties.STATE && d.properties.COUNTY) {
+		fips = d.properties.STATE + d.properties.COUNTY;
+	}
+
+	const county = props.counties.find((c) => c.fips == fips);
+	if (county) {
+		activeLocationStack.value.push({
+			type: 'county',
+			fips: fips,
+			data: county,
+		});
+
+		// Update overlay visibility
+		layers.value.countyOverlay.visible = true;
+		layers.value.stateOverlay.visible = true;
+
+		// Force update the overlay
+		updateOverlays();
+
+		console.log('Added county to active location stack:', county.name);
+	}
+
 	// Get the stored zoom behavior
 	const zoom = svg.value.__zoom__ || d3.zoom();
 
@@ -689,6 +977,17 @@ function handleCountyClick(event, d) {
 // Reset zoom function
 function resetZoom() {
 	console.log('Resetting zoom');
+
+	// Clear the active location stack
+	activeLocationStack.value = [];
+
+	// Reset overlay visibility
+	layers.value.stateOverlay.visible = false;
+	layers.value.countyOverlay.visible = false;
+
+	// Remove any existing overlays
+	svg.value.select('.stateOverlay-layer').remove();
+	svg.value.select('.countyOverlay-layer').remove();
 
 	// Get the stored zoom behavior
 	const zoom = svg.value.__zoom__ || d3.zoom();
@@ -774,6 +1073,49 @@ function addZoomControls() {
 		.text('↺');
 }
 
+// Function to update overlays when active location changes
+function updateOverlays() {
+	console.log('Updating overlays based on active location');
+
+	// Get the map container
+	const container = svg.value.select('.map-container');
+	if (container.empty()) {
+		console.error('Map container not found for overlay update');
+		return;
+	}
+
+	// Check if we have an active location
+	if (activeLocationStack.value.length === 0) {
+		// No active location, remove any overlays
+		svg.value.select('.stateOverlay-layer').remove();
+		svg.value.select('.countyOverlay-layer').remove();
+		return;
+	}
+
+	// Get the most recent active location
+	const activeLocation =
+		activeLocationStack.value[activeLocationStack.value.length - 1];
+
+	// Update overlays based on location type. State is always rendered.
+	if (activeLocation) {
+		if (activeLocation.type === 'county') {
+			// Remove county overlay if it exists
+			svg.value.select('.countyOverlay-layer').remove();
+		}
+
+		// Always render state overlay at minimum
+		renderStateOverlay(container);
+
+		if (activeLocation.type === 'county') {
+			// Remove state overlay if it exists
+			// svg.value.select('.stateOverlay-layer').remove();
+
+			// Update county overlay
+			renderCountyOverlay(container);
+		}
+	}
+}
+
 function handleTheme() {
 	const prefersDarkTheme = window.matchMedia('(prefers-color-scheme: dark)');
 	const light = FILL_COLORS[0];
@@ -805,6 +1147,7 @@ function handleTheme() {
 				noDataColor: isDark ? '#555' : 'rgb(220, 220, 220)',
 				strokeColor: isDark ? mediumLight : mediumDark,
 				stateBorderColor: isDark ? light : dark, // New color for state boundaries when zoomed in
+				overlayColor: isDark ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.5)', // Overlay color for non-selected features
 			},
 		},
 	};
@@ -840,23 +1183,23 @@ rgb(80, 66, 79)
 	height: 100%;
 }
 
-:deep(.counties path) {
+:deep(.counties-layer path) {
 	cursor: pointer;
 }
 
-:deep(.counties path:hover) {
-	stroke: rgb(42, 36, 41);
-	stroke-width: 0.5;
+:deep(.counties-layer path:hover) {
+	/* stroke: rgb(42, 36, 41); */
+	/* stroke-width: 0.5; */
 	filter: brightness(105%);
 }
 
-:deep(.states path) {
+:deep(.states-layer path) {
 	pointer-events: auto;
 }
 
-:deep(.states path:hover) {
-	stroke: #000;
-	stroke-width: 0.5;
+:deep(.states-layer path:hover) {
+	/* stroke: #000; */
+	/* stroke-width: 0.5; */
 	filter: brightness(105%);
 }
 
@@ -876,7 +1219,7 @@ rgb(80, 66, 79)
 }
 
 @media (prefers-color-scheme: dark) {
-	:deep(.counties path:hover) {
+	:deep(.counties-layer path:hover) {
 		stroke: rgb(247, 234, 247);
 	}
 
