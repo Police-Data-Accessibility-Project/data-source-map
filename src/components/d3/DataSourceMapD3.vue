@@ -8,6 +8,7 @@
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import * as d3 from 'd3';
 import { scaleThreshold } from 'd3-scale';
+import _debounce from 'lodash/debounce';
 import countiesGeoJSON from '../../util/geoJSON/counties.json';
 import statesGeoJSON from '../../util/geoJSON/states.json';
 
@@ -23,6 +24,10 @@ const FILL_COLORS = [
 	'rgb(98, 82, 96)',
 	'rgb(80, 66, 79)',
 ];
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 50;
+// Apply a small correction to latitude values (to compensate for albers proj)
+const LAT_CORRECTION = -0.1; // Negative value moves markers south
 // Define separate breakpoints for counties and states
 const countyColorBreakpoints = [1, 5, 10, 15, 25, 40, 60, 100];
 const stateColorBreakpoints = [1, 10, 25, 50, 100, 200, 500];
@@ -30,6 +35,11 @@ const stateColorBreakpoints = [1, 10, 25, 50, 100, 200, 500];
 // Props definition
 const props = defineProps({
 	counties: {
+		type: Array,
+		required: true,
+		default: () => [],
+	},
+	localities: {
 		type: Array,
 		required: true,
 		default: () => [],
@@ -47,6 +57,7 @@ const width = ref(960);
 const height = ref(600);
 const svg = ref(null);
 const path = ref(null);
+const projection = ref(null);
 const tooltip = ref(null);
 const countyColorScale = ref(null);
 const stateColorScale = ref(null);
@@ -61,6 +72,11 @@ const layers = ref({
 		data: countiesGeoJSON,
 		visible: true,
 		minZoom: 3,
+		maxZoom: Infinity,
+	},
+	localities: {
+		visible: true,
+		minZoom: 4,
 		maxZoom: Infinity,
 	},
 	states: {
@@ -154,9 +170,9 @@ onMounted(() => {
 
 // Watch for changes in counties data
 watch(
-	() => props.counties,
-	(newCounties) => {
-		if (newCounties && newCounties.length > 0 && countiesGeoJSON) {
+	() => props.states,
+	(newStates) => {
+		if (newStates.length) {
 			updateMap();
 		}
 	},
@@ -215,7 +231,7 @@ function initMap() {
 		.style('box-shadow', '0 2px 5px rgba(0,0,0,0.2)');
 
 	const padding = { top: 10, right: 10, bottom: 80, left: 10 };
-	const projectionObj = d3
+	projection.value = d3
 		.geoAlbersUsa()
 		.fitSize(
 			[
@@ -225,7 +241,7 @@ function initMap() {
 			layers.value.counties.data,
 		);
 
-	path.value = d3.geoPath().projection(projectionObj);
+	path.value = d3.geoPath().projection(projection.value);
 
 	// Create color scales with specific thresholds for counties and states
 	countyColorScale.value = scaleThreshold()
@@ -258,14 +274,18 @@ function updateMap() {
 	// 1. Counties (bottom layer)
 	// 2. State boundaries (middle layer, only outlines)
 	// 3. States (top layer, full choropleth)
-	// 4. Overlay layers (top-most, for highlighting selected features)
+	// 4. Locality markers (point features)
+	// 5. Overlay layers (top-most, for highlighting selected features)
+	renderStatesLayer(mapContainer);
+	renderStateOverlay(mapContainer);
 	renderCountiesLayer(mapContainer);
 	renderStateBoundariesLayer(mapContainer);
-	renderStatesLayer(mapContainer);
+	renderCountyOverlay(mapContainer);
 
 	// Add overlay layers on top
-	renderCountyOverlay(mapContainer);
-	renderStateOverlay(mapContainer);
+
+	// Localities
+	renderLocalityMarkers(mapContainer);
 
 	// Update layer visibility based on current zoom
 	updateLayerVisibility();
@@ -371,7 +391,6 @@ function renderStateBoundariesLayer(container) {
 		.append('path')
 		.attr('fill', 'none')
 		.attr('stroke', currentTheme.value.theme.map.stateBorderColor)
-		.attr('stroke-width', 0.4)
 		.attr('d', path.value);
 
 	console.log(
@@ -463,7 +482,6 @@ function renderStateOverlay(container) {
 		.attr('class', 'active-state-border')
 		.attr('fill', 'none') // No fill, just stroke
 		.attr('stroke', currentTheme.value.theme.map.stateBorderColor)
-		.attr('stroke-width', 1)
 		.attr('d', path.value)
 		.attr('pointer-events', 'none'); // Allow clicks to pass through
 
@@ -478,9 +496,11 @@ function renderCountyOverlay(container) {
 	)
 		return;
 
-	const activeCounty =
+	const activeLocation =
 		activeLocationStack.value[activeLocationStack.value.length - 1];
-	if (activeCounty.type !== 'county') return;
+	if (activeLocation.type === 'state') return;
+
+	console.debug({ activeLocation });
 
 	// Remove any existing overlay first to prevent duplicates
 	svg.value.select('.countyOverlay-layer').remove();
@@ -514,7 +534,9 @@ function renderCountyOverlay(container) {
 			path.value(
 				layers.value.countyOverlay.data.features.find((d) => {
 					const fips = d.properties.STATE + d.properties.COUNTY;
-					return fips === activeCounty.fips;
+					return (
+						fips === (activeLocation.fips || activeLocation.data.county_fips)
+					);
 				}),
 			),
 		)
@@ -537,22 +559,193 @@ function renderCountyOverlay(container) {
 		.data([
 			layers.value.countyOverlay.data.features.find((d) => {
 				const fips = d.properties.STATE + d.properties.COUNTY;
-				return fips === activeCounty.fips;
+				return fips === activeLocation.fips;
 			}),
 		])
 		.enter()
 		.append('path')
 		.attr('class', 'active-county-border')
-		.attr('fill', 'none') // No fill, just stroke
+		.attr('fill', 'none')
 		.attr('stroke', currentTheme.value.theme.map.strokeColor)
 		.attr('stroke-width', 0.5)
 		.attr('d', path.value)
-		.attr('pointer-events', 'none'); // Allow clicks to pass through
+		.attr('pointer-events', 'none');
+}
 
-	console.log(
-		'County overlay layer rendered, active county:',
-		activeCounty.data.name,
-	);
+// Function to render locality markers
+// Function to render locality markers
+function renderLocalityMarkers(container) {
+	console.log('Rendering locality markers, count:', props.localities.length);
+	console.log('Current zoom level:', currentZoom.value);
+
+	// Skip if no localities
+	if (!props.localities || props.localities.length === 0) {
+		console.log('No localities to render');
+		return;
+	}
+
+	// Create a layer for locality markers
+	const localitiesLayer = container
+		.append('g')
+		.attr('class', 'layer localities-layer')
+		.style('display', layers.value.localities.visible ? 'block' : 'none');
+
+	// Create GeoJSON points for each locality
+	const localityGeoJSON = {
+		type: 'FeatureCollection',
+		features: props.localities
+			.map((locality) => {
+				if (
+					locality.coordinates &&
+					locality.coordinates.lat &&
+					locality.coordinates.lng
+				) {
+					const correctedLat = locality.coordinates.lat + LAT_CORRECTION;
+
+					return {
+						type: 'Feature',
+						properties: locality,
+						geometry: {
+							type: 'Point',
+							// GeoJSON format is [longitude, latitude]
+							coordinates: [locality.coordinates.lng, correctedLat],
+						},
+					};
+				}
+				return null;
+			})
+			.filter(Boolean), // Remove null entries
+	};
+
+	console.log('Created GeoJSON for localities:', localityGeoJSON);
+
+	// Calculate marker size based on zoom level
+	const iconSize = 3;
+
+	// Add markers using path generator directly
+	const markers = localitiesLayer
+		.selectAll('.locality-marker')
+		.data(localityGeoJSON.features)
+		.enter()
+		.append('g')
+		.attr('class', 'locality-marker')
+		.attr('transform', (d) => {
+			// Project the coordinates to screen space
+			console.log('Projecting coordinates:', d.geometry.coordinates);
+
+			// Make sure we have valid coordinates before projecting
+			if (!d.geometry.coordinates || d.geometry.coordinates.length !== 2) {
+				console.error('Invalid coordinates:', d.geometry.coordinates);
+				return null;
+			}
+
+			// Use path.centroid instead of direct projection for more reliable results
+			const centroid = path.value.centroid(d);
+			if (
+				centroid &&
+				centroid.length === 2 &&
+				!isNaN(centroid[0]) &&
+				!isNaN(centroid[1])
+			) {
+				return `translate(${centroid[0]}, ${centroid[1]})`;
+			}
+
+			return null;
+		});
+
+	// Add Font Awesome icon as text element
+	markers
+		.append('text')
+		.attr(
+			'class',
+			(d) =>
+				`fa locality-marker ${d.properties.source_count ? 'has-sources' : 'no-sources'}`,
+		)
+		.attr('font-family', 'FontAwesome')
+		.attr('text-anchor', 'middle')
+		.attr('dominant-baseline', 'central')
+		.attr('y', -2) // Adjust position slightly
+		.attr('fill', '#ffffff')
+		.attr('cursor', 'pointer')
+		.text('\uf041'); // Font Awesome map marker unicode
+
+	// Add click and hover handlers
+	markers
+		.on('click', (event, d) => {
+			event.stopPropagation();
+			handleLocalityClick(event, d.properties);
+		})
+		.on('mouseover', function (event, d) {
+			const locality = d.properties;
+			// Show tooltip with locality information
+			tooltip.value
+				.style('opacity', 0.9)
+				.html(
+					`
+          <div style="font-weight:bold; font-size:14px; margin-bottom:5px;">
+            ${locality.name}
+          </div>
+          <div style="margin-bottom:3px;">
+            ${locality.county_name ? locality.county_name + ' County' : ''}
+          </div>
+          <div style="font-weight:bold; font-size:13px;">
+            Sources: ${locality.source_count}
+          </div>
+        `,
+				)
+				.style('left', event.pageX + 10 + 'px')
+				.style('top', event.pageY - 28 + 'px');
+
+			// Highlight the marker
+			d3.select(this)
+				.select('text')
+				.attr('font-size', `${iconSize * 1.25}px`);
+		})
+		.on('mouseout', function () {
+			// Hide tooltip
+			tooltip.value.style('opacity', 0);
+
+			// Reset marker style
+			d3.select(this).select('text').attr('font-size', `${iconSize}px`);
+		});
+
+	console.log('Localities layer rendered with', markers.size(), 'markers');
+}
+
+// Handle locality marker click
+function handleLocalityClick(event, locality) {
+	console.log('Locality clicked:', locality.name);
+	const LAT_CORRECTION = -0.05;
+	const correctedLat = locality.coordinates.lat + LAT_CORRECTION;
+
+	// Convert lat/lng to pixel coordinates
+	const [x, y] = projection.value([locality.coordinates.lng, correctedLat]);
+
+	const scale = 30;
+
+	const translate = [width.value / 2 - scale * x, height.value / 2 - scale * y];
+
+	// Add locality to the active location stack
+	activeLocationStack.value.push({
+		type: 'locality',
+		name: locality.name,
+		data: locality,
+		fips: locality.county_fips,
+	});
+
+	updateOverlays();
+
+	// Get the stored zoom behavior
+	const zoom = svg.value.__zoom__ || d3.zoom();
+
+	// Animate zoom transition
+	svg.value
+		.transition()
+		.duration(750)
+		.call(
+			zoom.transform,
+			d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale),
+		);
 }
 
 // Render states layer
@@ -584,7 +777,6 @@ function renderStatesLayer(container) {
 		.attr('d', path.value)
 		.attr('cursor', 'pointer')
 		.on('click', function (event, d) {
-			console.log('State path clicked');
 			event.stopPropagation(); // Stop event bubbling
 			handleStateClick(event, d);
 		})
@@ -613,8 +805,6 @@ function renderStatesLayer(container) {
 		.on('mouseout', () => {
 			tooltip.value.style('opacity', 0);
 		});
-
-	console.log('States layer rendered, visible:', layers.value.states.visible);
 }
 
 // Create a simple legend for the map
@@ -725,14 +915,6 @@ function createLegend() {
 		.attr('font-size', '9px')
 		.attr('fill', currentTheme.value.theme.legend.textColor)
 		.text('No data');
-
-	// Log which legend is being displayed
-	console.log(
-		'Legend displayed for:',
-		visibleLayer,
-		'with breakpoints:',
-		breakpoints,
-	);
 }
 
 // Setup zoom behavior
@@ -740,10 +922,8 @@ function setupZoom() {
 	// Create zoom behavior
 	const zoom = d3
 		.zoom()
-		.scaleExtent([1, 50]) // Min/max zoom levels
+		.scaleExtent([MIN_ZOOM, MAX_ZOOM]) // Min/max zoom levels
 		.on('zoom', handleZoom);
-
-	console.log('Setting up zoom behavior');
 
 	// Apply zoom to SVG
 	svg.value.call(zoom);
@@ -754,6 +934,60 @@ function setupZoom() {
 	// Initialize with no zoom
 	svg.value.call(zoom.transform, d3.zoomIdentity);
 }
+
+const updateIconSize = _debounce(
+	(zoomLevel) => {
+		// Calculate icon size: 4px at zoom 1, decreasing to 1px at zoom 22+
+		const minSize = 0.75;
+		const maxSize = 3;
+		const maxZoomRange = MAX_ZOOM / 2.3;
+
+		// Calculate size based on zoom level (inverse relationship)
+		let iconSize;
+		if (zoomLevel >= maxZoomRange) {
+			iconSize = minSize;
+		} else {
+			// Linear interpolation between maxSize and minSize
+			iconSize =
+				maxSize - ((zoomLevel - 1) / (maxZoomRange - 1)) * (maxSize - minSize);
+		}
+
+		// Round to 2 decimal places
+		iconSize = Math.round(iconSize * 100) / 100;
+
+		// Set the CSS variable on the container
+		document.documentElement.style.setProperty('--icon-size', `${iconSize}px`);
+	},
+	100,
+	{ leading: true, trailing: true },
+);
+const updateZoomLevel = _debounce(
+	(zoomLevel) => {
+		const minSize = 0;
+		const maxSize = 1;
+
+		// Calculate size based on zoom level (inverse relationship)
+		let zoomInversion;
+		if (zoomLevel >= MAX_ZOOM) {
+			zoomInversion = minSize;
+		} else {
+			// Linear interpolation between maxSize and minSize
+			zoomInversion =
+				maxSize - ((zoomLevel - 1) / (MAX_ZOOM - 1)) * (maxSize - minSize);
+		}
+
+		// Round to 2 decimal places
+		zoomInversion = Math.round(zoomInversion * 100) / 100;
+
+		// Set the CSS variable on the container
+		document.documentElement.style.setProperty(
+			'--zoom-inversion',
+			zoomInversion,
+		);
+	},
+	100,
+	{ leading: true, trailing: true },
+);
 
 // Handle zoom events
 function handleZoom(event) {
@@ -774,6 +1008,8 @@ function handleZoom(event) {
 
 	// Update layer visibility based on zoom level
 	updateLayerVisibility();
+	updateIconSize(currentZoom.value);
+	updateZoomLevel(currentZoom.value);
 }
 
 function handleOverlaysOnZoom(event, currentZoom) {
@@ -783,10 +1019,39 @@ function handleOverlaysOnZoom(event, currentZoom) {
 
 		// County overlay
 		if (
-			layers.value.countyOverlay.visible &&
+			!!layers.value.countyOverlay.visible &&
 			event.transform.k < COUNTY_THRESHOLD
 		) {
 			layers.value.countyOverlay.visible = false;
+
+			if (
+				['fips', 'county_fips'].some(
+					(s) =>
+						s in
+						(activeLocationStack.value[activeLocationStack.value.length - 1] ??
+							{}),
+				)
+			) {
+				const stateIndex = activeLocationStack.value.findLastIndex(
+					(loc) => loc.type === 'state',
+				);
+				const inferredState = props.states.find(
+					(state) =>
+						state.state_iso ===
+						activeLocationStack.value[activeLocationStack.value.length - 1].data
+							.state_iso,
+				);
+
+				activeLocationStack.value = activeLocationStack.value
+					.slice(0, stateIndex + 1)
+					.concat([
+						{
+							type: 'state',
+							name: inferredState.name,
+							data: inferredState,
+						},
+					]);
+			}
 
 			// Remove overlay layers from DOM
 			svg.value.select('.countyOverlay-layer').remove();
@@ -794,7 +1059,7 @@ function handleOverlaysOnZoom(event, currentZoom) {
 
 		// State overlay
 		if (
-			layers.value.stateOverlay.visible &&
+			!!layers.value.stateOverlay.visible &&
 			event.transform.k < STATE_THRESHOLD
 		) {
 			// Update visibility
@@ -842,10 +1107,10 @@ function updateLayerVisibility() {
 	});
 
 	// Log current zoom level and layer visibility
-	console.log('Current zoom:', currentZoom.value, 'Layers:', {
-		counties: layers.value.counties.visible,
-		states: layers.value.states.visible,
-	});
+	// console.log('Current zoom:', currentZoom.value, 'Layers:', {
+	// 	counties: layers.value.counties.visible,
+	// 	states: layers.value.states.visible,
+	// });
 
 	// Update legend if layer visibility changed
 	if (visibilityChanged) {
@@ -858,15 +1123,9 @@ function updateLayerVisibility() {
 
 // Handle state click to zoom
 function handleStateClick(event, d) {
-	// Add debug logging
-	console.log('State clicked:', d.properties.NAME);
-
-	// Prevent default behavior
 	event.stopPropagation();
 
-	// Get state bounds
 	const bounds = path.value.bounds(d);
-	console.log('State bounds:', bounds);
 
 	const dx = bounds[1][0] - bounds[0][0];
 	const dy = bounds[1][1] - bounds[0][1];
@@ -875,7 +1134,6 @@ function handleStateClick(event, d) {
 
 	// Calculate appropriate zoom level
 	const scale = 0.9 / Math.max(dx / width.value, dy / height.value);
-	console.log('Calculated zoom scale:', scale);
 
 	const translate = [width.value / 2 - scale * x, height.value / 2 - scale * y];
 
@@ -894,8 +1152,6 @@ function handleStateClick(event, d) {
 
 		// Force update the overlay
 		updateOverlays();
-
-		console.log('Added state to active location stack:', stateName);
 	}
 
 	// Get the stored zoom behavior
@@ -913,15 +1169,10 @@ function handleStateClick(event, d) {
 
 // Handle county click to zoom
 function handleCountyClick(event, d) {
-	// Add debug logging
-	console.log('County clicked:', d.properties.NAME || d.properties.COUNTY);
-
-	// Prevent default behavior
 	event.stopPropagation();
 
 	// Get county bounds
 	const bounds = path.value.bounds(d);
-	console.log('County bounds:', bounds);
 
 	const dx = bounds[1][0] - bounds[0][0];
 	const dy = bounds[1][1] - bounds[0][1];
@@ -930,7 +1181,6 @@ function handleCountyClick(event, d) {
 
 	// Calculate appropriate zoom level - moderate zoom for counties
 	const scale = 0.4 / Math.max(dx / width.value, dy / height.value);
-	console.log('Calculated zoom scale for county:', scale);
 
 	const translate = [width.value / 2 - scale * x, height.value / 2 - scale * y];
 
@@ -954,8 +1204,6 @@ function handleCountyClick(event, d) {
 
 		// Force update the overlay
 		updateOverlays();
-
-		console.log('Added county to active location stack:', county.name);
 	}
 
 	// Get the stored zoom behavior
@@ -973,8 +1221,6 @@ function handleCountyClick(event, d) {
 
 // Reset zoom function
 function resetZoom() {
-	console.log('Resetting zoom');
-
 	// Clear the active location stack
 	activeLocationStack.value = [];
 
@@ -1013,7 +1259,6 @@ function addZoomControls() {
 		.attr('rx', 3)
 		.attr('cursor', 'pointer')
 		.on('click', () => {
-			console.log('Zoom in clicked');
 			const zoom = svg.value.__zoom__ || d3.zoom();
 			svg.value.transition().call(zoom.scaleBy, 1.5);
 		});
@@ -1037,7 +1282,6 @@ function addZoomControls() {
 		.attr('rx', 3)
 		.attr('cursor', 'pointer')
 		.on('click', () => {
-			console.log('Zoom out clicked');
 			const zoom = svg.value.__zoom__ || d3.zoom();
 			svg.value.transition().call(zoom.scaleBy, 0.75);
 		});
@@ -1072,9 +1316,6 @@ function addZoomControls() {
 
 // Function to update overlays when active location changes
 function updateOverlays() {
-	console.log('Updating overlays based on active location');
-
-	// Get the map container
 	const container = svg.value.select('.map-container');
 	if (container.empty()) {
 		console.error('Map container not found for overlay update');
@@ -1095,7 +1336,7 @@ function updateOverlays() {
 
 	// Update overlays based on location type. State is always rendered.
 	if (activeLocation) {
-		if (activeLocation.type === 'county') {
+		if (activeLocation.type === 'state') {
 			// Remove county overlay if it exists
 			svg.value.select('.countyOverlay-layer').remove();
 		}
@@ -1103,10 +1344,7 @@ function updateOverlays() {
 		// Always render state overlay at minimum
 		renderStateOverlay(container);
 
-		if (activeLocation.type === 'county') {
-			// Remove state overlay if it exists
-			// svg.value.select('.stateOverlay-layer').remove();
-
+		if (activeLocation.type !== 'state') {
 			// Update county overlay
 			renderCountyOverlay(container);
 		}
@@ -1169,6 +1407,7 @@ rgb(117, 97, 116)
 rgb(98, 82, 96)
 rgb(80, 66, 79)
 } */
+
 .data-source-map-container {
 	position: relative;
 	width: 100%;
@@ -1200,8 +1439,15 @@ rgb(80, 66, 79)
 	filter: brightness(105%);
 }
 
-:deep(.stateBoundaries-layer path) {
-	pointer-events: none; /* Don't capture mouse events on state boundaries */
+:deep(.stateBoundaries-layer path),
+:deep(.active-state-border) {
+	pointer-events: none;
+	stroke-width: calc(0.8px * var(--zoom-inversion, 0.5));
+}
+
+:deep(.counties-layer path),
+:deep(.active-county-border) {
+	stroke-width: calc(0.5px * var(--zoom-inversion, 0.5));
 }
 
 :deep(.zoom-controls) {
@@ -1213,6 +1459,26 @@ rgb(80, 66, 79)
 	pointer-events: none;
 	font-size: 18px;
 	font-weight: bold;
+}
+
+:deep(.localities-layer) {
+	position: relative;
+	z-index: 999999999999999999999999;
+}
+:deep(.localities-layer text) {
+	filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.5));
+}
+
+:deep(.localities-layer text.locality-marker) {
+	font-size: var(--icon-size, 3px);
+}
+
+:deep(.localities-layer text.locality-marker.no-sources) {
+	opacity: 0.3;
+}
+
+:deep(.localities-layer circle) {
+	filter: drop-shadow(0px 1px 3px rgba(0, 0, 0, 0.5));
 }
 
 @media (prefers-color-scheme: dark) {
@@ -1227,6 +1493,14 @@ rgb(80, 66, 79)
 
 	:deep(.zoom-controls text) {
 		fill: #eee;
+	}
+
+	:deep(.localities-layer text) {
+		filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.8));
+	}
+
+	:deep(.localities-layer circle) {
+		filter: drop-shadow(0px 1px 3px rgba(0, 0, 0, 0.8));
 	}
 }
 </style>
