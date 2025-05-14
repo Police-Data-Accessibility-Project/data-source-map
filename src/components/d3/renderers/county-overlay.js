@@ -13,17 +13,12 @@ export function renderCountyOverlay(container, deps) {
 		width,
 		height,
 		path,
-		currentTheme
+		currentTheme,
 	} = deps;
 
-	if (
-		!layers.countyOverlay.visible ||
-		activeLocationStack.length === 0
-	)
-		return;
+	if (!layers.countyOverlay.visible || activeLocationStack.length === 0) return;
 
-	const activeLocation =
-		activeLocationStack[activeLocationStack.length - 1];
+	const activeLocation = activeLocationStack[activeLocationStack.length - 1];
 	if (activeLocation.type === 'state') return;
 
 	console.debug({ activeLocation });

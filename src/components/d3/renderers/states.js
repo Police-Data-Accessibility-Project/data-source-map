@@ -14,7 +14,7 @@ export function renderStatesLayer(container, deps) {
 		currentTheme,
 		tooltip,
 		handleStateClick,
-		props
+		props,
 	} = deps;
 
 	// Always create the layer, but control visibility with CSS

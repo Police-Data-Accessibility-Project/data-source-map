@@ -6,11 +6,7 @@
  * @param {Object} deps - Master dependencies object
  */
 export function renderStateBoundariesLayer(container, deps) {
-	const {
-		layers,
-		path,
-		currentTheme
-	} = deps;
+	const { layers, path, currentTheme } = deps;
 
 	// Always create the layer, but control visibility with CSS
 	const boundariesLayer = container
