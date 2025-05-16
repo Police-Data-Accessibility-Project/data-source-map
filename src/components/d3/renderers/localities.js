@@ -38,6 +38,9 @@ export function renderLocalityMarkers(container, deps) {
 			? activeLocation.fips
 			: activeLocation.data.county_fips;
 
+	// Remove any existing localities layer first
+	container.select('.localities-layer').remove();
+
 	// Create a layer for locality markers
 	const localitiesLayer = container
 		.append('g')
