@@ -32,12 +32,12 @@
 :deep(.stateBoundaries-layer path),
 :deep(.active-state-border) {
 	pointer-events: none;
-	stroke-width: calc(0.8px * var(--zoom-inversion, 0.5));
+	stroke-width: calc(0.35px * var(--zoom-inversion, 0.5));
 }
 
 :deep(.counties-layer path),
 :deep(.active-county-border) {
-	stroke-width: calc(0.5px * var(--zoom-inversion, 0.5));
+	stroke-width: calc(0.3px * var(--zoom-inversion, 0.5));
 }
 
 :deep(.zoom-controls) {

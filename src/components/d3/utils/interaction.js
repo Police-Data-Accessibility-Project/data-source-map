@@ -16,7 +16,7 @@ export function handleStateClick({
 	activeLocationStack,
 	layers,
 	svg,
-	updateOverlays,
+	updateDynamicLayers,
 }) {
 	event.stopPropagation();
 
@@ -36,17 +36,22 @@ export function handleStateClick({
 	const stateName = d.properties.NAME;
 	const state = props.states.find((s) => s.name === stateName);
 	if (state) {
-		activeLocationStack.push({
+		// Create a new array to ensure reactivity
+		const newStack = [...activeLocationStack];
+		newStack.push({
 			type: 'state',
 			name: stateName,
 			data: state,
 		});
 
+		// Replace the entire stack with the new one
+		activeLocationStack.splice(0, activeLocationStack.length, ...newStack);
+
 		// Update overlay visibility
 		layers.stateOverlay.visible = true;
 
 		// Force update the overlay
-		updateOverlays();
+		updateDynamicLayers();
 	}
 
 	// Get the stored zoom behavior
@@ -78,7 +83,7 @@ export function handleCountyClick({
 	activeLocationStack,
 	layers,
 	svg,
-	updateOverlays,
+	updateDynamicLayers,
 }) {
 	event.stopPropagation();
 
@@ -103,18 +108,23 @@ export function handleCountyClick({
 
 	const county = props.counties.find((c) => c.fips == fips);
 	if (county) {
-		activeLocationStack.push({
+		// Create a new array to ensure reactivity
+		const newStack = [...activeLocationStack];
+		newStack.push({
 			type: 'county',
 			fips: fips,
 			data: county,
 		});
+
+		// Replace the entire stack with the new one
+		activeLocationStack.splice(0, activeLocationStack.length, ...newStack);
 
 		// Update overlay visibility
 		layers.countyOverlay.visible = true;
 		layers.stateOverlay.visible = true;
 
 		// Force update the overlay
-		updateOverlays();
+		updateDynamicLayers();
 	}
 
 	// Get the stored zoom behavior
@@ -139,45 +149,23 @@ export function handleCountyClick({
 export function handleLocalityClick({
 	// event,
 	locality,
-	projection,
-	width,
-	height,
 	activeLocationStack,
-	updateOverlays,
-	svg,
-	LAT_CORRECTION,
+	updateDynamicLayers,
 }) {
-	console.log('Locality clicked:', locality.name);
-	const correctedLat = locality.coordinates.lat + LAT_CORRECTION;
-
-	// Convert lat/lng to pixel coordinates
-	const [x, y] = projection([locality.coordinates.lng, correctedLat]);
-
-	const scale = 30;
-
-	const translate = [width / 2 - scale * x, height / 2 - scale * y];
-
 	// Add locality to the active location stack
-	activeLocationStack.push({
+	// Create a new array to ensure reactivity
+	const newStack = [...activeLocationStack];
+	newStack.push({
 		type: 'locality',
 		name: locality.name,
 		data: locality,
 		fips: locality.county_fips,
 	});
 
-	updateOverlays();
+	// Replace the entire stack with the new one
+	activeLocationStack.splice(0, activeLocationStack.length, ...newStack);
 
-	// Get the stored zoom behavior
-	const zoom = svg.__zoom__ || d3.zoom();
-
-	// Animate zoom transition
-	svg
-		.transition()
-		.duration(750)
-		.call(
-			zoom.transform,
-			d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale),
-		);
+	updateDynamicLayers();
 
 	return activeLocationStack;
 }
@@ -188,7 +176,7 @@ export function handleLocalityClick({
  */
 export function resetZoom({ activeLocationStack, layers, svg }) {
 	// Clear the active location stack
-	activeLocationStack = [];
+	activeLocationStack.splice(0, activeLocationStack.length);
 
 	// Reset overlay visibility
 	layers.stateOverlay.visible = false;

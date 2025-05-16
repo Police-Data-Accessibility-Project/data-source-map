@@ -1,6 +1,9 @@
 // localityMarkersRenderer.js - Renders the locality markers
 import * as d3 from 'd3';
 
+// Pre-compute GeoJSON for all localities
+let localityGeoJSONCache = {};
+
 /**
  * Renders the locality markers
  * @param {Object} container - D3 selection for the container
@@ -8,61 +11,70 @@ import * as d3 from 'd3';
  */
 export function renderLocalityMarkers(container, deps) {
 	const {
-		layers,
-		props,
-		currentZoom,
 		path,
 		tooltip,
 		handleLocalityClick,
-		LAT_CORRECTION
+		LAT_CORRECTION,
+		LNG_CORRECTION,
+		activeLocationStack,
+		localitiesByCounty,
 	} = deps;
 
-	console.log('Rendering locality markers, count:', props.localities.length);
-	console.log('Current zoom level:', currentZoom);
-
 	// Skip if no localities
-	if (!props.localities || props.localities.length === 0) {
-		console.log('No localities to render');
+	if (!localitiesByCounty) return;
+
+	// Only show localities if a county or locality is selected
+	const activeLocation =
+		activeLocationStack?.length > 0
+			? activeLocationStack[activeLocationStack.length - 1]
+			: null;
+
+	if (activeLocation?.type !== 'county' && activeLocation?.type !== 'locality')
 		return;
-	}
+
+	// Get the county FIPS code
+	const countyFips =
+		activeLocation.type === 'county'
+			? activeLocation.fips
+			: activeLocation.data.county_fips;
 
 	// Create a layer for locality markers
 	const localitiesLayer = container
 		.append('g')
 		.attr('class', 'layer localities-layer')
-		.style('display', layers.localities.visible ? 'block' : 'none');
+		.style('display', 'block');
 
-	// Create GeoJSON points for each locality
-	const localityGeoJSON = {
-		type: 'FeatureCollection',
-		features: props.localities
-			.map((locality) => {
-				if (
-					locality.coordinates &&
-					locality.coordinates.lat &&
-					locality.coordinates.lng
-				) {
-					const correctedLat = locality.coordinates.lat + LAT_CORRECTION;
+	// Use cached GeoJSON if available, otherwise create it
+	if (!localityGeoJSONCache[countyFips]) {
+		localityGeoJSONCache[countyFips] = {
+			type: 'FeatureCollection',
+			features: localitiesByCounty[countyFips]
+				.map((locality) => {
+					if (
+						locality.coordinates &&
+						locality.coordinates.lat &&
+						locality.coordinates.lng
+					) {
+						const correctedLat = locality.coordinates.lat + LAT_CORRECTION;
+						const correctedLng = locality.coordinates.lng + LNG_CORRECTION;
 
-					return {
-						type: 'Feature',
-						properties: locality,
-						geometry: {
-							type: 'Point',
-							// GeoJSON format is [longitude, latitude]
-							coordinates: [locality.coordinates.lng, correctedLat],
-						},
-					};
-				}
-				return null;
-			})
-			.filter(Boolean), // Remove null entries
-	};
+						return {
+							type: 'Feature',
+							properties: locality,
+							geometry: {
+								type: 'Point',
+								coordinates: [correctedLng, correctedLat],
+							},
+						};
+					}
+					return null;
+				})
+				.filter(Boolean), // Remove null entries
+		};
+	}
 
-	console.log('Created GeoJSON for localities:', localityGeoJSON);
-
-	// Calculate marker size based on zoom level
-	const iconSize = 3;
+	// Use the cached GeoJSON
+	const localityGeoJSON = localityGeoJSONCache[countyFips];
 
 	// Add markers using path generator directly
 	const markers = localitiesLayer
@@ -72,12 +84,8 @@ export function renderLocalityMarkers(container, deps) {
 		.append('g')
 		.attr('class', 'locality-marker')
 		.attr('transform', (d) => {
-			// Project the coordinates to screen space
-			console.log('Projecting coordinates:', d.geometry.coordinates);
-
 			// Make sure we have valid coordinates before projecting
 			if (!d.geometry.coordinates || d.geometry.coordinates.length !== 2) {
-				console.error('Invalid coordinates:', d.geometry.coordinates);
 				return null;
 			}
 
@@ -128,7 +136,7 @@ export function renderLocalityMarkers(container, deps) {
             ${locality.name}
           </div>
           <div style="margin-bottom:3px;">
-            ${locality.county_name ? locality.county_name + ' County' : ''}
+            ${locality.county_name}
           </div>
           <div style="font-weight:bold; font-size:13px;">
             Sources: ${locality.source_count}
@@ -139,17 +147,13 @@ export function renderLocalityMarkers(container, deps) {
 				.style('top', event.pageY - 28 + 'px');
 
 			// Highlight the marker
-			d3.select(this)
-				.select('text')
-				.attr('font-size', `${iconSize * 1.25}px`);
+			d3.select(this).select('text').attr('font-size', '16px');
 		})
 		.on('mouseout', function () {
 			// Hide tooltip
 			tooltip.style('opacity', 0);
 
 			// Reset marker style
-			d3.select(this).select('text').attr('font-size', `${iconSize}px`);
+			// d3.select(this).select('text').attr('font-size', `${iconSize}px`);
 		});
-
-	console.log('Localities layer rendered with', markers.size(), 'markers');
 }

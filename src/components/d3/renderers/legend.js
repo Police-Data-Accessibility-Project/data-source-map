@@ -5,6 +5,12 @@
  * @param {Object} deps - Master dependencies object
  */
 export function createLegend(deps) {
+	// Check if all required dependencies are available
+	if (!deps || !deps.svg || !deps.currentTheme || !deps.FILL_COLORS) {
+		console.error('Missing required dependencies for legend:', deps);
+		return;
+	}
+
 	const {
 		layers,
 		countyColorBreakpoints,

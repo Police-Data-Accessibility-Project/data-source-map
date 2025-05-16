@@ -69,9 +69,13 @@ export function addZoomControls({ svg, width, resetZoom }) {
 		.attr('stroke', '#ccc')
 		.attr('rx', 3)
 		.attr('cursor', 'pointer')
-		.on('click', () => {
+		.on('click', (event) => {
+			event.stopPropagation();
 			const zoom = svg.__zoom__ || d3.zoom();
 			svg.transition().call(zoom.scaleBy, 0.75);
+		})
+		.on('dblclick', (event) => {
+			event.stopPropagation();
 		});
 
 	controls
@@ -137,17 +141,16 @@ export const updateIconSize = _debounce(
  */
 export const updateZoomLevel = _debounce(
 	(zoomLevel, MAX_ZOOM) => {
-		const minSize = 0;
-		const maxSize = 1;
+		const min = 0;
+		const max = 0.75;
 
 		// Calculate size based on zoom level (inverse relationship)
 		let zoomInversion;
 		if (zoomLevel >= MAX_ZOOM) {
-			zoomInversion = minSize;
+			zoomInversion = min;
 		} else {
 			// Linear interpolation between maxSize and minSize
-			zoomInversion =
-				maxSize - ((zoomLevel - 1) / (MAX_ZOOM - 1)) * (maxSize - minSize);
+			zoomInversion = max - ((zoomLevel - 1) / (MAX_ZOOM - 1)) * (max - min);
 		}
 
 		// Round to 2 decimal places
@@ -248,6 +251,7 @@ export function updateLayerVisibility({
 	// Show/hide layers based on zoom level
 	Object.keys(layers).forEach((layerName) => {
 		const layer = layers[layerName];
+
 		const shouldBeVisible =
 			currentZoom >= layer.minZoom && currentZoom <= layer.maxZoom;
 

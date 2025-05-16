@@ -32,7 +32,7 @@ import {
 	handleLocalityClick,
 	resetZoom,
 } from './utils/interaction';
-import { updateOverlays } from './utils/overlay';
+import { updateDynamicLayers } from './utils/overlay';
 // import { createOverlayDeps } from './utils/createOverlayDeps';
 
 import countiesGeoJSON from '../../util/geoJSON/counties.json';
@@ -40,8 +40,9 @@ import statesGeoJSON from '../../util/geoJSON/states.json';
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 50;
-// Apply a small correction to latitude values (to compensate for albers proj)
+// Apply a small correction to lat/lng values (to compensate for albers proj) TODO: figure out why this isn't working OOTB
 const LAT_CORRECTION = -0.1; // Negative value moves markers south
+const LNG_CORRECTION = -0.03; // Negative value moves markers west
 // Define separate breakpoints for counties and states
 const countyColorBreakpoints = [1, 5, 10, 15, 25, 40, 60, 100];
 const stateColorBreakpoints = [1, 10, 25, 50, 100, 200, 500];
@@ -90,7 +91,7 @@ const layers = ref({
 	},
 	localities: {
 		visible: true,
-		minZoom: 4,
+		minZoom: 9,
 		maxZoom: Infinity,
 	},
 	states: {
@@ -144,6 +145,22 @@ const stateDataMap = computed(() => {
 	return map;
 });
 
+// Organize localities by county FIPS code for faster lookup
+const localitiesByCounty = computed(() => {
+	const map = {};
+	if (props.localities && props.localities.length > 0) {
+		props.localities.forEach((locality) => {
+			if (locality.county_fips) {
+				if (!map[locality.county_fips]) {
+					map[locality.county_fips] = [];
+				}
+				map[locality.county_fips].push(locality);
+			}
+		});
+	}
+	return map;
+});
+
 // Initialize map when component is mounted
 onMounted(() => {
 	currentTheme.value = handleTheme();
@@ -170,21 +187,11 @@ watch(
 watch(
 	() => activeLocationStack.value,
 	() => {
-		// Update overlays immediately when activeLocationStack changes
-		const overlayDeps = {
-			svg: svg.value,
-			activeLocationStack: activeLocationStack.value,
-			layers: layers.value,
-			path: path.value,
-			width: width.value,
-			height: height.value,
-			props,
-			currentTheme: currentTheme.value,
-		};
-		updateOverlays({
+		updateDynamicLayers({
 			renderStateOverlay,
 			renderCountyOverlay,
-			deps: overlayDeps,
+			renderLocalityMarkers,
+			deps: mapDeps.value,
 		});
 	},
 	{ deep: true },
@@ -295,6 +302,9 @@ const mapDeps = computed(() => {
 		height: height.value,
 		props,
 		currentTheme: currentTheme.value,
+		localitiesByCounty: localitiesByCounty.value,
+		LAT_CORRECTION,
+		LNG_CORRECTION,
 	});
 
 	return {
@@ -321,9 +331,11 @@ const mapDeps = computed(() => {
 		// Data maps
 		countyDataMap: countyDataMap.value,
 		stateDataMap: stateDataMap.value,
+		localitiesByCounty: localitiesByCounty.value,
 
 		// Constants
 		LAT_CORRECTION,
+		LNG_CORRECTION,
 		MIN_ZOOM,
 		MAX_ZOOM,
 		FILL_COLORS,
@@ -342,10 +354,11 @@ const mapDeps = computed(() => {
 				activeLocationStack: [...activeLocationStack.value],
 				layers: layers.value,
 				svg: svg.value,
-				updateOverlays: () =>
-					updateOverlays({
+				updateDynamicLayers: () =>
+					updateDynamicLayers({
 						renderStateOverlay,
 						renderCountyOverlay,
+						renderLocalityMarkers,
 						deps: getOverlayDeps(),
 					}),
 			});
@@ -362,10 +375,11 @@ const mapDeps = computed(() => {
 				activeLocationStack: [...activeLocationStack.value],
 				layers: layers.value,
 				svg: svg.value,
-				updateOverlays: () =>
-					updateOverlays({
+				updateDynamicLayers: () =>
+					updateDynamicLayers({
 						renderStateOverlay,
 						renderCountyOverlay,
+						renderLocalityMarkers,
 						deps: getOverlayDeps(),
 					}),
 			});
@@ -379,14 +393,16 @@ const mapDeps = computed(() => {
 				width: width.value,
 				height: height.value,
 				activeLocationStack: [...activeLocationStack.value],
-				updateOverlays: () =>
-					updateOverlays({
+				updateDynamicLayers: () =>
+					updateDynamicLayers({
 						renderStateOverlay,
 						renderCountyOverlay,
+						renderLocalityMarkers,
 						deps: getOverlayDeps(),
 					}),
 				svg: svg.value,
 				LAT_CORRECTION,
+				LNG_CORRECTION,
 			});
 		},
 
@@ -399,10 +415,11 @@ const mapDeps = computed(() => {
 		},
 
 		// Utility functions
-		updateOverlays: () => {
-			return updateOverlays({
+		updateDynamicLayers: () => {
+			return updateDynamicLayers({
 				renderStateOverlay,
 				renderCountyOverlay,
+				renderLocalityMarkers,
 				deps: getOverlayDeps(),
 			});
 		},
@@ -423,15 +440,18 @@ function updateMap() {
 
 	const deps = mapDeps.value;
 
-	// Render layers in the correct order:
+	// Render static layers in the correct order:
 	renderStatesLayer(mapContainer, deps);
 	renderCountiesLayer(mapContainer, deps);
 	renderStateBoundariesLayer(mapContainer, deps);
 
-	renderStateOverlay(mapContainer, deps);
-	renderCountyOverlay(mapContainer, deps);
-
-	renderLocalityMarkers(mapContainer, deps);
+	// Render dynamic layers based on active location
+	updateDynamicLayers({
+		renderStateOverlay,
+		renderCountyOverlay,
+		renderLocalityMarkers,
+		deps,
+	});
 
 	// Update layer visibility based on current zoom
 	updateLayerVisibility({
@@ -448,8 +468,12 @@ function updateMap() {
 		resetZoom: deps.resetZoom,
 	});
 
-	// Add legend
-	createLegend(deps);
+	// Add legend - ensure it has all required properties
+	try {
+		createLegend(deps);
+	} catch (error) {
+		console.error('Error creating legend:', error);
+	}
 
 	console.log('Map updated with layers:', Object.keys(layers.value));
 }
