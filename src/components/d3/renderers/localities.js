@@ -12,6 +12,7 @@ let localityGeoJSONCache = {};
 export function renderLocalityMarkers(container, deps) {
 	const {
 		path,
+		projection,
 		tooltip,
 		handleLocalityClick,
 		LAT_CORRECTION,
@@ -92,15 +93,11 @@ export function renderLocalityMarkers(container, deps) {
 				return null;
 			}
 
-			// Use path.centroid instead of direct projection for more reliable results
-			const centroid = path.centroid(d);
-			if (
-				centroid &&
-				centroid.length === 2 &&
-				!isNaN(centroid[0]) &&
-				!isNaN(centroid[1])
-			) {
-				return `translate(${centroid[0]}, ${centroid[1]})`;
+			// Use projection directly to convert coordinates to screen position
+			const coords = d.geometry.coordinates;
+			const pos = projection(coords);
+			if (pos && !isNaN(pos[0]) && !isNaN(pos[1])) {
+				return `translate(${pos[0]}, ${pos[1]})`;
 			}
 
 			return null;

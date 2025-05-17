@@ -41,8 +41,8 @@ import statesGeoJSON from '../../util/geoJSON/states.json';
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 50;
 // Apply a small correction to lat/lng values (to compensate for albers proj) TODO: figure out why this isn't working OOTB
-const LAT_CORRECTION = -0.09; // Negative value moves markers south
-const LNG_CORRECTION = -0.03; // Negative value moves markers west
+const LAT_CORRECTION = -0.085; // Negative value moves markers south
+const LNG_CORRECTION = -0.005; // Positive value moves markers east
 // Define separate breakpoints for counties and states
 const countyColorBreakpoints = [1, 5, 10, 15, 25, 40, 60, 100];
 const stateColorBreakpoints = [1, 10, 25, 50, 100, 200, 500];
@@ -303,6 +303,7 @@ const mapDeps = computed(() => {
 		props,
 		currentTheme: currentTheme.value,
 		localitiesByCounty: localitiesByCounty.value,
+		projection: projection.value,
 		LAT_CORRECTION,
 		LNG_CORRECTION,
 	});
