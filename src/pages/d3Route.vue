@@ -1,6 +1,6 @@
 <template>
 	<main>
-		<DataSourceMapD3 :counties="data.counties" :states="data.states" />
+		<DataSourceMapD3 v-bind="{ ...data }" />
 	</main>
 </template>
 
@@ -11,7 +11,7 @@ import axios from 'axios';
 
 const PDAP_DATA_SOURCE_SEARCH = import.meta.env.VITE_API_URL + '/map/locations';
 
-const data = ref([]);
+const data = ref({});
 const error = ref(undefined);
 
 onMounted(async () => {
