@@ -11,7 +11,6 @@ let localityGeoJSONCache = {};
  */
 export function renderLocalityMarkers(container, deps) {
 	const {
-		path,
 		projection,
 		tooltip,
 		handleLocalityClick,

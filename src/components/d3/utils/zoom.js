@@ -7,12 +7,21 @@ import _debounce from 'lodash/debounce';
  * Sets up zoom behavior for the map
  * @param {Object} params - Parameters needed for zoom setup
  */
-export function setupZoom({ svg, MIN_ZOOM, MAX_ZOOM, handleZoom }) {
+export function setupZoom({
+	svg,
+	MIN_ZOOM,
+	MAX_ZOOM,
+	onZoom,
+	onZoomStart,
+	onZoomEnd,
+}) {
 	// Create zoom behavior
 	const zoom = d3
 		.zoom()
 		.scaleExtent([MIN_ZOOM, MAX_ZOOM]) // Min/max zoom levels
-		.on('zoom', handleZoom);
+		.on('start', onZoomStart)
+		.on('zoom', onZoom)
+		.on('end', onZoomEnd);
 
 	// Apply zoom to SVG
 	svg.call(zoom);
@@ -114,7 +123,7 @@ export const updateIconSize = _debounce(
 		// Calculate icon size: 4px at zoom 1, decreasing to 1px at zoom 22+
 		const minSize = 0.75;
 		const maxSize = 3;
-		const maxZoomRange = MAX_ZOOM / 2.3;
+		const maxZoomRange = MAX_ZOOM / 1.5;
 
 		// Calculate size based on zoom level (inverse relationship)
 		let iconSize;

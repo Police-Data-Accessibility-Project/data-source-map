@@ -44,9 +44,12 @@ export function updateDynamicLayers({
 		if (activeLocation.type !== 'state') {
 			// Update county overlay
 			renderCountyOverlay(container, deps);
-			
+
 			// Render locality markers for county or locality selections
-			if (activeLocation.type === 'county' || activeLocation.type === 'locality') {
+			if (
+				activeLocation.type === 'county' ||
+				activeLocation.type === 'locality'
+			) {
 				renderLocalityMarkers(container, deps);
 			}
 		}

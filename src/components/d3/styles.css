@@ -60,7 +60,7 @@
 }
 
 :deep(.localities-layer text.locality-marker) {
-	font-size: var(--icon-size, 3px);
+	font-size: var(--icon-size);
 }
 
 :deep(.localities-layer text.locality-marker.no-sources) {

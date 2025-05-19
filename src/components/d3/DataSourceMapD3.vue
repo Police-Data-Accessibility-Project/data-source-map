@@ -91,7 +91,7 @@ const layers = ref({
 	},
 	localities: {
 		visible: true,
-		minZoom: 9,
+		minZoom: 6,
 		maxZoom: Infinity,
 	},
 	states: {
@@ -250,7 +250,7 @@ function initMap() {
 		svg: svg.value,
 		MIN_ZOOM,
 		MAX_ZOOM,
-		handleZoom: (event) => {
+		onZoom: (event) => {
 			// Update overlay visibility before overwriting current zoom
 			activeLocationStack.value = handleOverlaysOnZoom({
 				event,
@@ -264,6 +264,8 @@ function initMap() {
 			// Store current zoom transform
 			zoomTransform.value = event.transform;
 			currentZoom.value = event.transform.k;
+			updateIconSize(currentZoom.value, MAX_ZOOM);
+			updateZoomLevel(currentZoom.value, MAX_ZOOM);
 
 			// Apply transform to all layers
 			const mapContainer = svg.value.select('.map-container');
@@ -280,9 +282,6 @@ function initMap() {
 				svg: svg.value,
 				createLegend: () => createLegend(mapDeps.value),
 			});
-
-			updateIconSize(currentZoom.value, MAX_ZOOM);
-			updateZoomLevel(currentZoom.value, MAX_ZOOM);
 		},
 	});
 
@@ -294,6 +293,7 @@ function initMap() {
 const mapDeps = computed(() => {
 	// Helper function to create overlay deps without circular reference
 	const getOverlayDeps = () => ({
+		container: svg.value.select('.map-container'),
 		svg: svg.value,
 		activeLocationStack: activeLocationStack.value,
 		layers: layers.value,
@@ -310,6 +310,7 @@ const mapDeps = computed(() => {
 
 	return {
 		// Core map properties
+		container: svg.value.select('.map-container'),
 		svg: svg.value,
 		width: width.value,
 		height: height.value,

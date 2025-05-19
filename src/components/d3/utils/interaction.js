@@ -96,7 +96,7 @@ export function handleCountyClick({
 	const y = (bounds[0][1] + bounds[1][1]) / 2;
 
 	// Calculate appropriate zoom level - moderate zoom for counties
-	const scale = 0.4 / Math.max(dx / width, dy / height);
+	const scale = 0.5 / Math.max(dx / width, dy / height);
 
 	const translate = [width / 2 - scale * x, height / 2 - scale * y];
 
