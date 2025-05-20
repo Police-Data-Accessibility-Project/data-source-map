@@ -14,14 +14,17 @@ export function renderCountyOverlay(container, deps) {
 		height,
 		path,
 		currentTheme,
+		STATUSES,
 	} = deps;
 
-	if (!layers.countyOverlay.visible || activeLocationStack.length === 0) return;
+	if (
+		layers.countyOverlay.status !== STATUSES.IDLE ||
+		activeLocationStack.length === 0
+	)
+		return;
 
 	const activeLocation = activeLocationStack[activeLocationStack.length - 1];
 	if (activeLocation.type === 'state') return;
-
-	console.debug({ activeLocation });
 
 	// Remove any existing overlay first to prevent duplicates
 	svg.select('.countyOverlay-layer').remove();
@@ -29,7 +32,10 @@ export function renderCountyOverlay(container, deps) {
 	const overlayLayer = container
 		.append('g')
 		.attr('class', 'layer countyOverlay-layer')
-		.style('display', layers.countyOverlay.visible ? 'block' : 'none');
+		.style(
+			'display',
+			layers.countyOverlay.status === STATUSES.IDLE ? 'block' : 'none',
+		);
 
 	// Create a mask for the active county
 	const maskId = `mask-county-${Date.now()}`; // Use timestamp to ensure uniqueness

@@ -1,6 +1,12 @@
 <template>
 	<div class="data-source-map-container">
 		<div id="map-container" ref="mapContainer" />
+		<!-- <span class="loading"></span> -->
+		<Spinner
+			:show="layers.states.status === STATUSES.LOADING"
+			:size="100"
+			class="h-full w-full absolute left-0 top-0 z-50 bg-goldneutral-500/70 dark:bg-wineneutral-500/70"
+		/>
 	</div>
 </template>
 
@@ -8,6 +14,7 @@
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import * as d3 from 'd3';
 import { scaleThreshold } from 'd3-scale';
+import { Spinner } from 'pdap-design-system';
 
 import { FILL_COLORS, handleTheme } from './utils/theme';
 import {
@@ -38,6 +45,12 @@ import { updateDynamicLayers } from './utils/overlay';
 import countiesGeoJSON from '../../util/geoJSON/counties.json';
 import statesGeoJSON from '../../util/geoJSON/states.json';
 
+const STATUSES = {
+	LOADING: 'loading',
+	IDLE: 'idle',
+	ERROR: 'error',
+	HIDDEN: 'hidden',
+};
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 50;
 // Apply a small correction to lat/lng values (to compensate for albers proj) TODO: figure out why this isn't working OOTB
@@ -51,18 +64,18 @@ const stateColorBreakpoints = [1, 10, 25, 50, 100, 200, 500];
 const props = defineProps({
 	counties: {
 		type: Array,
-		required: true,
-		default: () => [],
+		required: false,
+		default: undefined,
 	},
 	localities: {
 		type: Array,
-		required: true,
-		default: () => [],
+		required: false,
+		default: undefined,
 	},
 	states: {
 		type: Array,
-		required: true,
-		default: () => [],
+		required: false,
+		default: undefined,
 	},
 });
 
@@ -82,43 +95,6 @@ const activeLocationStack = ref([]); // Stack to track selected locations
 // Zoom-related state
 const currentZoom = ref(1);
 const zoomTransform = ref(null);
-const layers = ref({
-	counties: {
-		data: countiesGeoJSON,
-		visible: true,
-		minZoom: 3,
-		maxZoom: Infinity,
-	},
-	localities: {
-		visible: true,
-		minZoom: 6,
-		maxZoom: Infinity,
-	},
-	states: {
-		data: statesGeoJSON,
-		visible: true,
-		minZoom: 0,
-		maxZoom: 3,
-	},
-	stateBoundaries: {
-		data: statesGeoJSON,
-		visible: true,
-		minZoom: 3,
-		maxZoom: Infinity,
-	},
-	countyOverlay: {
-		data: countiesGeoJSON,
-		visible: false,
-		minZoom: 3,
-		maxZoom: Infinity,
-	},
-	stateOverlay: {
-		data: statesGeoJSON,
-		visible: false,
-		minZoom: 0,
-		maxZoom: Infinity,
-	},
-});
 
 // Computed property for county data map
 const countyDataMap = computed(() => {
@@ -160,6 +136,54 @@ const localitiesByCounty = computed(() => {
 	}
 	return map;
 });
+
+const layers = computed(() => ({
+	counties: {
+		data: countiesGeoJSON,
+		status: Object.keys(countyDataMap.value).length
+			? STATUSES.IDLE
+			: STATUSES.LOADING,
+		minZoom: 3,
+		maxZoom: Infinity,
+	},
+	localities: {
+		status: Object.keys(localitiesByCounty.value).length
+			? STATUSES.IDLE
+			: STATUSES.LOADING,
+		minZoom: 6,
+		maxZoom: Infinity,
+	},
+	states: {
+		data: statesGeoJSON,
+		status: Object.keys(stateDataMap.value).length
+			? STATUSES.IDLE
+			: STATUSES.LOADING,
+		minZoom: 0,
+		maxZoom: 3,
+	},
+	stateBoundaries: {
+		data: statesGeoJSON,
+		status: Object.keys(stateDataMap.value).length
+			? STATUSES.IDLE
+			: STATUSES.LOADING,
+		minZoom: 3,
+		maxZoom: Infinity,
+	},
+	countyOverlay: {
+		data: countiesGeoJSON,
+		status: STATUSES.HIDDEN,
+		minZoom: 3,
+		maxZoom: Infinity,
+	},
+	stateOverlay: {
+		data: statesGeoJSON,
+		status: STATUSES.HIDDEN,
+		minZoom: 0,
+		maxZoom: Infinity,
+	},
+}));
+
+console.log({ layers });
 
 // Initialize map when component is mounted
 onMounted(() => {
@@ -259,6 +283,7 @@ function initMap() {
 				activeLocationStack: activeLocationStack.value,
 				props,
 				svg: svg.value,
+				STATUSES,
 			});
 
 			// Store current zoom transform
@@ -281,6 +306,7 @@ function initMap() {
 				currentZoom: currentZoom.value,
 				svg: svg.value,
 				createLegend: () => createLegend(mapDeps.value),
+				STATUSES,
 			});
 		},
 	});
@@ -306,6 +332,7 @@ const mapDeps = computed(() => {
 		projection: projection.value,
 		LAT_CORRECTION,
 		LNG_CORRECTION,
+		STATUSES,
 	});
 
 	return {
@@ -341,12 +368,14 @@ const mapDeps = computed(() => {
 		MIN_ZOOM,
 		MAX_ZOOM,
 		FILL_COLORS,
+		STATUSES,
 		countyColorBreakpoints,
 		stateColorBreakpoints,
 
 		// Handler functions
 		handleStateClick: (event, d) => {
 			activeLocationStack.value = handleStateClick({
+				STATUSES,
 				event,
 				d,
 				path: path.value,
@@ -368,6 +397,7 @@ const mapDeps = computed(() => {
 
 		handleCountyClick: (event, d) => {
 			activeLocationStack.value = handleCountyClick({
+				STATUSES,
 				event,
 				d,
 				path: path.value,
@@ -389,6 +419,7 @@ const mapDeps = computed(() => {
 
 		handleLocalityClick: (event, locality) => {
 			activeLocationStack.value = handleLocalityClick({
+				STATUSES,
 				event,
 				locality,
 				projection: projection.value,
@@ -413,6 +444,7 @@ const mapDeps = computed(() => {
 				activeLocationStack: [...activeLocationStack.value],
 				layers: layers.value,
 				svg: svg.value,
+				STATUSES,
 			});
 		},
 
@@ -461,6 +493,7 @@ function updateMap() {
 		currentZoom: currentZoom.value,
 		svg: svg.value,
 		createLegend: () => createLegend(deps),
+		STATUSES,
 	});
 
 	// Add zoom controls
@@ -476,8 +509,6 @@ function updateMap() {
 	} catch (error) {
 		console.error('Error creating legend:', error);
 	}
-
-	console.log('Map updated with layers:', Object.keys(layers.value));
 }
 
 // Clean up when component is unmounted

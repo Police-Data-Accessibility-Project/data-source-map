@@ -185,6 +185,7 @@ export function handleOverlaysOnZoom({
 	activeLocationStack,
 	props,
 	svg,
+	STATUSES,
 }) {
 	if (event.transform.k < currentZoom) {
 		const COUNTY_THRESHOLD = 5.25;
@@ -192,10 +193,10 @@ export function handleOverlaysOnZoom({
 
 		// County overlay
 		if (
-			!!layers.countyOverlay.visible &&
+			layers.countyOverlay.status === STATUSES.IDLE &&
 			event.transform.k < COUNTY_THRESHOLD
 		) {
-			layers.countyOverlay.visible = false;
+			layers.countyOverlay.status = STATUSES.HIDDEN;
 
 			if (
 				['fips', 'county_fips'].some(
@@ -228,10 +229,13 @@ export function handleOverlaysOnZoom({
 		}
 
 		// State overlay
-		if (!!layers.stateOverlay.visible && event.transform.k < STATE_THRESHOLD) {
+		if (
+			!!layers.stateOverlay.status === STATUSES.IDLE &&
+			event.transform.k < STATE_THRESHOLD
+		) {
 			// Update visibility
-			layers.stateOverlay.visible = false;
-			layers.countyOverlay.visible = false;
+			layers.stateOverlay.status = STATUSES.HIDDEN;
+			layers.countyOverlay.status = STATUSES.HIDDEN;
 
 			// Remove overlay layers from DOM
 			svg.select('.stateOverlay-layer').remove();
@@ -253,6 +257,7 @@ export function updateLayerVisibility({
 	currentZoom,
 	svg,
 	createLegend,
+	STATUSES,
 }) {
 	// Track if visibility changed
 	let visibilityChanged = false;
@@ -265,12 +270,12 @@ export function updateLayerVisibility({
 			currentZoom >= layer.minZoom && currentZoom <= layer.maxZoom;
 
 		// Check if visibility changed
-		if (layer.visible !== shouldBeVisible) {
+		if (Boolean(layer.status === STATUSES.IDLE) && shouldBeVisible) {
 			visibilityChanged = true;
 		}
 
 		// Update visibility state
-		layer.visible = shouldBeVisible;
+		layer.status = shouldBeVisible ? STATUSES.IDLE : STATUSES.HIDDEN;
 
 		// Apply visibility to DOM
 		const layerElement = svg.select(`.${layerName}-layer`);

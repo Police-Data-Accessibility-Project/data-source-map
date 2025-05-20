@@ -20,10 +20,12 @@ export function createLegend(deps) {
 		svg,
 		currentTheme,
 		FILL_COLORS,
+		STATUSES,
 	} = deps;
 
 	// Determine which layer is visible
-	const visibleLayer = layers.counties.visible ? 'counties' : 'states';
+	const visibleLayer =
+		layers.counties.status === STATUSES.IDLE ? 'counties' : 'states';
 
 	// Use the appropriate color breakpoints based on visible layer
 	const breakpoints =

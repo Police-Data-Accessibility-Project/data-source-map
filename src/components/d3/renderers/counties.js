@@ -15,13 +15,17 @@ export function renderCountiesLayer(container, deps) {
 		tooltip,
 		props,
 		handleCountyClick,
+		STATUSES,
 	} = deps;
 
 	// Always create the layer, but control visibility with CSS
 	const countiesLayer = container
 		.append('g')
 		.attr('class', 'layer counties-layer')
-		.style('display', layers.counties.visible ? 'block' : 'none');
+		.style(
+			'display',
+			layers.counties.status === STATUSES.IDLE ? 'block' : 'none',
+		);
 
 	// Draw counties with choropleth coloring
 	countiesLayer
@@ -84,6 +88,4 @@ export function renderCountiesLayer(container, deps) {
 		.on('mouseout', () => {
 			tooltip.style('opacity', 0);
 		});
-
-	console.log('Counties layer rendered, visible:', layers.counties.visible);
 }

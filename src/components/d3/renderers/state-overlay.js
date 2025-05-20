@@ -15,9 +15,14 @@ export function renderStateOverlay(container, deps) {
 		height,
 		path,
 		currentTheme,
+		STATUSES,
 	} = deps;
 
-	if (!layers?.stateOverlay.visible || activeLocationStack.length === 0) return;
+	if (
+		layers?.stateOverlay.status !== STATUSES.IDLE ||
+		activeLocationStack.length === 0
+	)
+		return;
 
 	const activeState = props.states.find(
 		(state) =>
@@ -38,7 +43,10 @@ export function renderStateOverlay(container, deps) {
 	const overlayLayer = container
 		.append('g')
 		.attr('class', 'layer stateOverlay-layer')
-		.style('display', layers.stateOverlay.visible ? 'block' : 'none');
+		.style(
+			'display',
+			layers.stateOverlay.status === STATUSES.IDLE ? 'block' : 'none',
+		);
 
 	// Create a mask for the active state
 	const maskId = `mask-state-${Date.now()}`; // Use timestamp to ensure uniqueness
@@ -52,8 +60,8 @@ export function renderStateOverlay(container, deps) {
 		.append('rect')
 		.attr('x', 0)
 		.attr('y', 0)
-		.attr('width', width)
-		.attr('height', height)
+		.attr('width', '100%')
+		.attr('height', '100%')
 		.attr('fill', 'white');
 
 	// Add the state shape to the mask in black (black = invisible area)

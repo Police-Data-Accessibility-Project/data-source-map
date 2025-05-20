@@ -15,13 +15,17 @@ export function renderStatesLayer(container, deps) {
 		tooltip,
 		handleStateClick,
 		props,
+		STATUSES,
 	} = deps;
 
 	// Always create the layer, but control visibility with CSS
 	const statesLayer = container
 		.append('g')
 		.attr('class', 'layer states-layer')
-		.style('display', layers.states.visible ? 'block' : 'none');
+		.style(
+			'display',
+			layers.states.status === STATUSES.IDLE ? 'block' : 'none',
+		);
 
 	// Draw states with choropleth coloring
 	statesLayer

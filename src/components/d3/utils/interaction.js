@@ -17,6 +17,7 @@ export function handleStateClick({
 	layers,
 	svg,
 	updateDynamicLayers,
+	STATUSES,
 }) {
 	event.stopPropagation();
 
@@ -48,7 +49,7 @@ export function handleStateClick({
 		activeLocationStack.splice(0, activeLocationStack.length, ...newStack);
 
 		// Update overlay visibility
-		layers.stateOverlay.visible = true;
+		layers.stateOverlay.status = STATUSES.IDLE;
 
 		// Force update the overlay
 		updateDynamicLayers();
@@ -84,6 +85,7 @@ export function handleCountyClick({
 	layers,
 	svg,
 	updateDynamicLayers,
+	STATUSES,
 }) {
 	event.stopPropagation();
 
@@ -120,8 +122,8 @@ export function handleCountyClick({
 		activeLocationStack.splice(0, activeLocationStack.length, ...newStack);
 
 		// Update overlay visibility
-		layers.countyOverlay.visible = true;
-		layers.stateOverlay.visible = true;
+		layers.countyOverlay.status = STATUSES.IDLE;
+		layers.stateOverlay.status = STATUSES.IDLE;
 
 		// Force update the overlay
 		updateDynamicLayers();
@@ -174,13 +176,13 @@ export function handleLocalityClick({
  * Resets zoom to default view
  * @param {Object} params - Parameters needed for resetting zoom
  */
-export function resetZoom({ activeLocationStack, layers, svg }) {
+export function resetZoom({ activeLocationStack, layers, svg, STATUSES }) {
 	// Clear the active location stack
 	activeLocationStack.splice(0, activeLocationStack.length);
 
 	// Reset overlay visibility
-	layers.stateOverlay.visible = false;
-	layers.countyOverlay.visible = false;
+	layers.stateOverlay.status = STATUSES.HIDDEN;
+	layers.countyOverlay.status = STATUSES.HIDDEN;
 
 	// Remove any existing overlays
 	svg.select('.stateOverlay-layer').remove();
