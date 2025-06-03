@@ -1,5 +1,5 @@
 import { createWebHistory, createRouter } from 'vue-router';
-import SearchRedirect from './pages/SearchRedirect.vue';
+import Redirect from './pages/Redirect.vue';
 import MapRouteMapbox from './pages/MapboxRoute.vue';
 import MapRouteD3 from './pages/d3Route.vue';
 import HomeRoute from './pages/HomeRoute.vue';
@@ -21,8 +21,13 @@ const routes = [
 	},
 	{
 		path: '/search/results',
-		component: SearchRedirect,
-		name: 'SearchRedirect',
+		component: Redirect,
+		name: 'Redirect',
+	},
+	{
+		path: '/data-request/*',
+		component: Redirect,
+		name: 'Redirect',
 	},
 ];
 

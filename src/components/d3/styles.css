@@ -4,11 +4,41 @@
 	height: auto;
 	max-width: 1245px;
 	margin: 0 auto;
+	display: flex;
 }
 
 #map-container {
 	width: 100%;
 	height: 100%;
+	position: relative;
+}
+
+.map-sidebar {
+	position: absolute;
+	top: 10px;
+	right: 10px;
+	width: 300px;
+	height: calc(100% - 20px);
+	background-color: rgba(255, 255, 255, 0.95);
+	box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+	z-index: 1000;
+	padding: 20px;
+	overflow-y: auto;
+	transform: translateX(100%);
+	transition: transform 0.3s ease-in-out;
+	visibility: hidden;
+}
+
+.map-sidebar.visible {
+	transform: translateX(0);
+	visibility: visible;
+}
+
+@media (prefers-color-scheme: dark) {
+	.map-sidebar {
+		background-color: rgba(30, 30, 30, 0.95);
+		color: #eee;
+	}
 }
 
 :deep(.counties-layer path) {

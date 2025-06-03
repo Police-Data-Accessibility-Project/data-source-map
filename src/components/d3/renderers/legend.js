@@ -37,8 +37,8 @@ export function createLegend(deps) {
 	const legendWidth = 200;
 	const legendHeight = 30;
 
-	// Position in bottom-right corner with offset to avoid Florida
-	const legendX = width - legendWidth - 40;
+	// Position in bottom-left corner
+	const legendX = 40;
 	const legendY = height - legendHeight - 40;
 
 	// Add more space for the "No data" indicator

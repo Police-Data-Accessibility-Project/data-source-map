@@ -7,6 +7,8 @@
 			:size="100"
 			class="h-full w-full absolute left-0 top-0 z-50 bg-goldneutral-500/70 dark:bg-wineneutral-500/70"
 		/>
+		<!-- Sidebar that appears when a location is selected -->
+		<MapSidebar :locations="activeLocationStack" />
 	</div>
 </template>
 
@@ -15,6 +17,7 @@ import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import * as d3 from 'd3';
 import { scaleThreshold } from 'd3-scale';
 import { Spinner } from 'pdap-design-system';
+import MapSidebar from './MapSidebar.vue';
 
 import { FILL_COLORS, handleTheme } from './utils/theme';
 import {
@@ -499,7 +502,6 @@ function updateMap() {
 	// Add zoom controls
 	addZoomControls({
 		svg: svg.value,
-		width: width.value,
 		resetZoom: deps.resetZoom,
 	});
 
