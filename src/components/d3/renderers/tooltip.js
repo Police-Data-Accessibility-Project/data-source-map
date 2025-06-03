@@ -17,7 +17,7 @@ export function createTooltip(tooltip, currentTheme) {
 		.style('padding', '10px')
 		.style('border-radius', '3px')
 		.style('pointer-events', 'none')
-		.style('z-index', 1000)
+		.style('z-index', 101)
 		.style('font-size', '12px')
 		.style('box-shadow', '0 2px 5px rgba(0,0,0,0.2)');
 }

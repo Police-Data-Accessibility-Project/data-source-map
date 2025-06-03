@@ -22,12 +22,17 @@ const routes = [
 	{
 		path: '/search/results',
 		component: Redirect,
-		name: 'Redirect',
+		name: 'RedirectSearch',
 	},
 	{
-		path: '/data-request/*',
+		path: '/data-request/:id',
 		component: Redirect,
-		name: 'Redirect',
+		name: 'RedirectDataR',
+	},
+	{
+		path: '/data-source/:id',
+		component: Redirect,
+		name: 'RedirectDataS',
 	},
 ];
 

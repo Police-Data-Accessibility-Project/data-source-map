@@ -85,7 +85,14 @@ export function renderLocalityMarkers(container, deps) {
 		.data(localityGeoJSON.features)
 		.enter()
 		.append('g')
-		.attr('class', 'locality-marker')
+		.attr('class', (d) => {
+			// Check if this locality is the active location
+			const isActive = activeLocation.type === 'locality' && 
+			activeLocation.data.location_id === d.properties.location_id;
+			console.debug({d, activeLocation, isActive})
+			
+			return `locality-marker ${isActive ? 'active-locality' : ''}`;
+		})
 		.attr('transform', (d) => {
 			// Make sure we have valid coordinates before projecting
 			if (!d.geometry.coordinates || d.geometry.coordinates.length !== 2) {
@@ -114,7 +121,7 @@ export function renderLocalityMarkers(container, deps) {
 		.attr('text-anchor', 'middle')
 		.attr('dominant-baseline', 'central')
 		.attr('y', -2) // Adjust position slightly
-		.attr('fill', '#ffffff')
+		.attr('fill', 'rgba(255, 255, 255, 0.75)')
 		.attr('cursor', 'pointer')
 		.text('\uf041'); // Font Awesome map marker unicode
 
