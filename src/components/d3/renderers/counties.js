@@ -75,7 +75,6 @@ export function renderCountiesLayer(container, deps) {
             <div style="font-weight:bold; font-size:14px; margin-bottom:5px;">
               ${county.name}, ${county.state_iso}
             </div>
-            <div style="margin-bottom:3px;">FIPS: ${county.fips}</div>
             <div style="font-weight:bold; font-size:13px;">
               Sources: ${county.source_count}
             </div>

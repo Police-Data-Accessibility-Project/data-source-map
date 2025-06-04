@@ -87,7 +87,6 @@ export function renderLocalityMarkers(container, deps) {
 		.append('g')
 		.attr('class', (d) => {
 			const hasActiveLocality = activeLocation.type === 'locality';
-			console.debug({activeLocation})
 			// Check if this locality is the active location
 			const isActive = activeLocation.type === 'locality' && 
 			activeLocation.data.location_id === d.properties.location_id;			
