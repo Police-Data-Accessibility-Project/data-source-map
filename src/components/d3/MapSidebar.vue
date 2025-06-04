@@ -29,7 +29,7 @@
     <div class="content-section">
       <!-- State level: show counties -->
       <div v-if="activeLocationType === 'state' && countiesInState.length">
-        <div v-for="county in countiesInState" :key="county.fips" class="location-item">
+        <div v-for="county in countiesInState.toSorted((a,b) => b.source_count - a.source_count)" :key="county.fips" class="location-item">
           <button @click="selectLocation('county', county)" class="location-button">
             <div class="location-name">{{ county.name }}</div>
             <div class="flex justify-between w-full">
@@ -43,7 +43,7 @@
 
       <!-- County level: show localities -->
       <div v-if="activeLocationType === 'county' && localitiesInCounty.length">
-        <div v-for="locality in localitiesInCounty" :key="locality.id" class="location-item">
+        <div v-for="locality in localitiesInCounty.toSorted((a,b) => b.source_count - a.source_count)" :key="locality.id" class="location-item">
           <button @click="selectLocation('locality', locality)" class="location-button">
             <div class="location-name">{{ locality.name }}</div>
             <div class="flex justify-between w-full">
