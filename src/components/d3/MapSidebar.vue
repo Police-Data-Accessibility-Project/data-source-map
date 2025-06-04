@@ -14,7 +14,7 @@
     <div class="action-block mb-6">
       <router-link 
         :to="`/search/results?location_id=${activeLocation?.data?.location_id || ''}`" 
-        class="pdap-button-secondary mb-2 block w-full text-center"
+        class="pdap-button-secondary mb-2 w-full max-w-full text-center flex items-center gap-2"
       >
         View all data sources <font-awesome-icon icon="fa-solid fa-arrow-right" />
       </router-link>

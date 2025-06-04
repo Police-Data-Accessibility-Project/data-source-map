@@ -37,6 +37,8 @@ export function renderLocalityMarkers(container, deps) {
 		activeLocation.type === 'county'
 			? activeLocation.fips
 			: activeLocation.data.county_fips;
+	
+			console.debug({countyFips, activeLocation})
 
 	// Remove any existing localities layer first
 	container.select('.localities-layer').remove();
@@ -48,11 +50,10 @@ export function renderLocalityMarkers(container, deps) {
 		.style('display', 'block');
 
 	// Use cached GeoJSON if available, otherwise create it
-	if (!localityGeoJSONCache[countyFips]) {
+	if (!localityGeoJSONCache[countyFips] && localitiesByCounty[countyFips]) {
 		localityGeoJSONCache[countyFips] = {
 			type: 'FeatureCollection',
-			features: localitiesByCounty[countyFips]
-				.map((locality) => {
+			features: localitiesByCounty[countyFips]?.map((locality) => {
 					if (
 						locality.coordinates &&
 						locality.coordinates.lat &&
@@ -78,6 +79,7 @@ export function renderLocalityMarkers(container, deps) {
 
 	// Use the cached GeoJSON
 	const localityGeoJSON = localityGeoJSONCache[countyFips];
+	if (!localityGeoJSON) return;
 
 	// Add markers using path generator directly
 	const markers = localitiesLayer

@@ -224,7 +224,8 @@ watch(
 );
 watch(
 	() => activeLocationStack.value,
-	() => {
+	(newStack) => {
+		console.debug({newStack})
 		updateDynamicLayers({
 			renderStateOverlay,
 			renderCountyOverlay,
