@@ -53,7 +53,6 @@ export function renderCountiesLayer(container, deps) {
 		.attr('stroke-width', 0.2)
 		.attr('cursor', 'pointer') // Show pointer cursor on counties too
 		.on('click', function (event, d) {
-			console.log('County clicked:', d.properties.NAME || d.properties.COUNTY);
 			event.stopPropagation(); // Stop event bubbling
 			handleCountyClick(event, d);
 		})

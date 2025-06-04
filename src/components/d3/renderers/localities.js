@@ -38,8 +38,6 @@ export function renderLocalityMarkers(container, deps) {
 			? activeLocation.fips
 			: activeLocation.data.county_fips;
 	
-			console.debug({countyFips, activeLocation})
-
 	// Remove any existing localities layer first
 	container.select('.localities-layer').remove();
 

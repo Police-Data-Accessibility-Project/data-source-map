@@ -197,8 +197,6 @@ const layers = computed(() => ({
 	},
 }));
 
-console.log({ layers });
-
 // Initialize map when component is mounted
 onMounted(() => {
 	currentTheme.value = handleTheme();
@@ -224,8 +222,7 @@ watch(
 );
 watch(
 	() => activeLocationStack.value,
-	(newStack) => {
-		console.debug({newStack})
+	() => {
 		updateDynamicLayers({
 			renderStateOverlay,
 			renderCountyOverlay,
