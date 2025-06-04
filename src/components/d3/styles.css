@@ -14,13 +14,12 @@
 }
 
 .map-sidebar {
+	@apply bg-neutral-100/70 flex flex-col;
 	position: absolute;
 	top: 10px;
 	right: 10px;
 	width: 300px;
 	height: calc(100% - 20px);
-	background-color: rgba(255, 255, 255, 0.95);
-	box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
 	/* z-index: 12; */
 	padding: 20px;
 	overflow-y: auto;
@@ -103,6 +102,10 @@
 	/* filter: brightness(115%); */
 	/* transform: scale(1.2); */
 	fill: rgba(255, 255, 255, 1);
+}
+
+:deep(.localities-layer .has-active:not(.active-locality)) {
+	display: none;
 }
 
 :deep(.localities-layer circle) {

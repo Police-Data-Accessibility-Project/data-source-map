@@ -1,24 +1,26 @@
 <template>
   <div class="map-sidebar" :class="{ visible: locations.length > 0 }">
     <!-- 1. Header with back button and title -->
-    <div class="sidebar-header">
+    <div class="flex items-start content-between w-full">
       <button @click="handleBackClick" class="back-button">
         <font-awesome-icon icon="fa-solid fa-chevron-left" />
       </button>
-      <h3 class="text-lg font-bold">{{ headerTitle }}</h3>
+      <h3 class="text-lg font-bold mb-0 mt-0 text-right w-full">{{ headerTitle }}</h3>
     </div>
+
+    <hr class="my-4 border-neutral-500/50" />
 
     <!-- 2. First action block -->
     <div class="action-block mb-6">
       <router-link 
         :to="`/search/results?location_id=${activeLocation?.data?.location_id || ''}`" 
-        class="pdap-secondary-button mb-2 block w-full text-center"
+        class="pdap-button-secondary mb-2 block w-full text-center"
       >
         View all data sources <font-awesome-icon icon="fa-solid fa-arrow-right" />
       </router-link>
       <Button 
         variant="primary" 
-        class="w-full" 
+        class="w-full max-w-full" 
         @click="$emit('on-follow', activeLocation?.data?.location_id)"
       >
         Follow for updates
@@ -113,10 +115,10 @@ const headerTitle = computed(() => {
     return `${activeLocation.value.data.state_iso.toUpperCase()} Counties`;
   } else if (activeLocationType.value === 'county') {
     // Check if Louisiana for Parish vs County
-    const isLouisiana = activeLocation.value.data.state_iso === 'la';
-    return `${activeLocation.value.data.name} ${isLouisiana ? 'Parish' : 'County'}`;
+    const isLouisiana = activeLocation.value.data.state_iso === 'LA';
+    return `${activeLocation.value.data.name} ${isLouisiana ? 'Parish' : 'County'}, ${activeLocation.value.data.state_iso.toUpperCase()}`;
   } else if (activeLocationType.value === 'locality') {
-    return activeLocation.value.data.name;
+    return `${activeLocation.value.data.name}, ${activeLocation.value.data.state_iso.toUpperCase()}`;
   }
   
   return '';
@@ -230,14 +232,6 @@ function handleBackClick() {
 </script>
 
 <style scoped>
-.sidebar-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 1rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-}
-
 .back-button {
   margin-right: 0.75rem;
   padding: 0.25rem 0.5rem;
@@ -286,6 +280,8 @@ function handleBackClick() {
 }
 
 .bottom-action-block {
+  bottom: 0;
+  position: relative;
   margin-top: auto;
   padding-top: 1rem;
   border-top: 1px solid rgba(0, 0, 0, 0.1);

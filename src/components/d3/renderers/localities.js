@@ -86,12 +86,12 @@ export function renderLocalityMarkers(container, deps) {
 		.enter()
 		.append('g')
 		.attr('class', (d) => {
+			const hasActiveLocality = activeLocation.type === 'locality';
+			console.debug({activeLocation})
 			// Check if this locality is the active location
 			const isActive = activeLocation.type === 'locality' && 
-			activeLocation.data.location_id === d.properties.location_id;
-			console.debug({d, activeLocation, isActive})
-			
-			return `locality-marker ${isActive ? 'active-locality' : ''}`;
+			activeLocation.data.location_id === d.properties.location_id;			
+			return `locality-marker ${isActive ? 'active-locality' : ''} ${hasActiveLocality ? 'has-active' : ''}`;
 		})
 		.attr('transform', (d) => {
 			// Make sure we have valid coordinates before projecting
