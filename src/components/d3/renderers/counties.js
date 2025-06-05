@@ -53,7 +53,6 @@ export function renderCountiesLayer(container, deps) {
 		.attr('stroke-width', 0.2)
 		.attr('cursor', 'pointer') // Show pointer cursor on counties too
 		.on('click', function (event, d) {
-			console.log('County clicked:', d.properties.NAME || d.properties.COUNTY);
 			event.stopPropagation(); // Stop event bubbling
 			handleCountyClick(event, d);
 		})
@@ -75,7 +74,6 @@ export function renderCountiesLayer(container, deps) {
             <div style="font-weight:bold; font-size:14px; margin-bottom:5px;">
               ${county.name}, ${county.state_iso}
             </div>
-            <div style="margin-bottom:3px;">FIPS: ${county.fips}</div>
             <div style="font-weight:bold; font-size:13px;">
               Sources: ${county.source_count}
             </div>

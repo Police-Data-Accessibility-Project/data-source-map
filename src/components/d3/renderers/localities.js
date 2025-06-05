@@ -37,7 +37,7 @@ export function renderLocalityMarkers(container, deps) {
 		activeLocation.type === 'county'
 			? activeLocation.fips
 			: activeLocation.data.county_fips;
-
+	
 	// Remove any existing localities layer first
 	container.select('.localities-layer').remove();
 
@@ -48,11 +48,10 @@ export function renderLocalityMarkers(container, deps) {
 		.style('display', 'block');
 
 	// Use cached GeoJSON if available, otherwise create it
-	if (!localityGeoJSONCache[countyFips]) {
+	if (!localityGeoJSONCache[countyFips] && localitiesByCounty[countyFips]) {
 		localityGeoJSONCache[countyFips] = {
 			type: 'FeatureCollection',
-			features: localitiesByCounty[countyFips]
-				.map((locality) => {
+			features: localitiesByCounty[countyFips]?.map((locality) => {
 					if (
 						locality.coordinates &&
 						locality.coordinates.lat &&
@@ -78,6 +77,7 @@ export function renderLocalityMarkers(container, deps) {
 
 	// Use the cached GeoJSON
 	const localityGeoJSON = localityGeoJSONCache[countyFips];
+	if (!localityGeoJSON) return;
 
 	// Add markers using path generator directly
 	const markers = localitiesLayer
@@ -85,7 +85,13 @@ export function renderLocalityMarkers(container, deps) {
 		.data(localityGeoJSON.features)
 		.enter()
 		.append('g')
-		.attr('class', 'locality-marker')
+		.attr('class', (d) => {
+			const hasActiveLocality = activeLocation.type === 'locality';
+			// Check if this locality is the active location
+			const isActive = activeLocation.type === 'locality' && 
+			activeLocation.data.location_id === d.properties.location_id;			
+			return `locality-marker ${isActive ? 'active-locality' : ''} ${hasActiveLocality ? 'has-active' : ''}`;
+		})
 		.attr('transform', (d) => {
 			// Make sure we have valid coordinates before projecting
 			if (!d.geometry.coordinates || d.geometry.coordinates.length !== 2) {
@@ -114,7 +120,7 @@ export function renderLocalityMarkers(container, deps) {
 		.attr('text-anchor', 'middle')
 		.attr('dominant-baseline', 'central')
 		.attr('y', -2) // Adjust position slightly
-		.attr('fill', '#ffffff')
+		.attr('fill', 'rgba(255, 255, 255, 0.75)')
 		.attr('cursor', 'pointer')
 		.text('\uf041'); // Font Awesome map marker unicode
 

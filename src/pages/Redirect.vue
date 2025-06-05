@@ -1,5 +1,4 @@
 <template>{null}</template>
-
 <script setup>
 import { onMounted } from 'vue';
 import { useRoute } from 'vue-router';

@@ -293,8 +293,6 @@ function attachDataSourcesToMap() {
 
 			if (!countyFeatures.length) return;
 
-			console.debug({ countyFeatures });
-
 			countyFeatures.forEach((feat) => {
 				if (countyLookup.value.get(feat.properties.id)) return;
 				countyLookup.value.set(feat.properties.id, feat);

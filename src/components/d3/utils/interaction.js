@@ -31,8 +31,6 @@ export function handleStateClick({
 	// Calculate appropriate zoom level
 	const scale = 0.9 / Math.max(dx / width, dy / height);
 
-	const translate = [width / 2 - scale * x, height / 2 - scale * y];
-
 	// Add state to the active location stack
 	const stateName = d.properties.NAME;
 	const state = props.states.find((s) => s.name === stateName);
@@ -57,6 +55,11 @@ export function handleStateClick({
 
 	// Get the stored zoom behavior
 	const zoom = svg.__zoom__ || d3.zoom();
+
+	// Calculate offset for sidebar
+	// Use a larger offset (150px) to make the shift more noticeable
+	const sidebarOffset = activeLocationStack.length > 0 ? 150 : 0;
+	const translate = [width / 2 - scale * x - sidebarOffset, height / 2 - scale * y];
 
 	// Animate zoom transition
 	svg
@@ -100,8 +103,6 @@ export function handleCountyClick({
 	// Calculate appropriate zoom level - moderate zoom for counties
 	const scale = 0.5 / Math.max(dx / width, dy / height);
 
-	const translate = [width / 2 - scale * x, height / 2 - scale * y];
-
 	// Add county to the active location stack
 	let fips;
 	if (d.properties.STATE && d.properties.COUNTY) {
@@ -131,6 +132,11 @@ export function handleCountyClick({
 
 	// Get the stored zoom behavior
 	const zoom = svg.__zoom__ || d3.zoom();
+
+	// Calculate offset for sidebar
+	// Use a larger offset (150px) to make the shift more noticeable
+	const sidebarOffset = activeLocationStack.length > 0 ? 150 : 0;
+	const translate = [width / 2 - scale * x - sidebarOffset, height / 2 - scale * y];
 
 	// Animate zoom transition
 	svg

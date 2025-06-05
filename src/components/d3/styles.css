@@ -4,11 +4,40 @@
 	height: auto;
 	max-width: 1245px;
 	margin: 0 auto;
+	display: flex;
 }
 
 #map-container {
 	width: 100%;
 	height: 100%;
+	position: relative;
+}
+
+.map-sidebar {
+	@apply bg-neutral-100/70 flex flex-col;
+	position: absolute;
+	top: 10px;
+	right: 10px;
+	width: 320px;
+	height: calc(100% - 20px);
+	/* z-index: 12; */
+	padding: 20px;
+	overflow-y: auto;
+	transform: translateX(100%);
+	transition: transform 0.3s ease-in-out;
+	visibility: hidden;
+}
+
+.map-sidebar.visible {
+	transform: translateX(0);
+	visibility: visible;
+}
+
+@media (prefers-color-scheme: dark) {
+	.map-sidebar {
+		background-color: rgba(30, 30, 30, 0.95);
+		color: #eee;
+	}
 }
 
 :deep(.counties-layer path) {
@@ -55,7 +84,7 @@
 
 :deep(.localities-layer) {
 	position: relative;
-	z-index: 999999999999999999999999;
+	/* z-index: 999999999999999999999999; */
 }
 :deep(.localities-layer text) {
 	filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.5));
@@ -67,6 +96,16 @@
 
 :deep(.localities-layer text.locality-marker.no-sources) {
 	opacity: 0.3;
+}
+
+:deep(.localities-layer .active-locality text) {
+	/* filter: brightness(115%); */
+	/* transform: scale(1.2); */
+	fill: rgba(255, 255, 255, 1);
+}
+
+:deep(.localities-layer .has-active:not(.active-locality)) {
+	display: none;
 }
 
 :deep(.localities-layer circle) {

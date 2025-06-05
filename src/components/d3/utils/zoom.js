@@ -37,12 +37,12 @@ export function setupZoom({
  * Adds zoom controls to the map
  * @param {Object} params - Parameters needed for adding zoom controls
  */
-export function addZoomControls({ svg, width, resetZoom }) {
+export function addZoomControls({ svg, resetZoom }) {
 	// Add zoom in/out buttons
 	const controls = svg
 		.append('g')
 		.attr('class', 'zoom-controls')
-		.attr('transform', `translate(${width - 60}, 20)`);
+		.attr('transform', `translate(20, 20)`);
 
 	// Zoom in button
 	controls
@@ -230,7 +230,7 @@ export function handleOverlaysOnZoom({
 
 		// State overlay
 		if (
-			!!layers.stateOverlay.status === STATUSES.IDLE &&
+			layers.stateOverlay.status === STATUSES.IDLE &&
 			event.transform.k < STATE_THRESHOLD
 		) {
 			// Update visibility

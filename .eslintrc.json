@@ -5,5 +5,8 @@
   ],
   "plugins": [
     "prettier"
-  ]
+  ],
+  "rules": {
+    "vue/multi-word-component-names": "none"
+  }
 }

@@ -7,6 +7,16 @@
 			:size="100"
 			class="h-full w-full absolute left-0 top-0 z-50 bg-goldneutral-500/70 dark:bg-wineneutral-500/70"
 		/>
+		<!-- Sidebar that appears when a location is selected -->
+		<MapSidebar 
+			:locations="activeLocationStack" 
+			:counties="props.counties" 
+			:localities="props.localities"
+			:states="props.states"
+			@update-active-location="updateActiveLocationStack"
+			@on-follow="handleFollow"
+			@zoom-to-location="handleZoomToLocation"
+		/>
 	</div>
 </template>
 
@@ -15,6 +25,7 @@ import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import * as d3 from 'd3';
 import { scaleThreshold } from 'd3-scale';
 import { Spinner } from 'pdap-design-system';
+import MapSidebar from './MapSidebar.vue';
 
 import { FILL_COLORS, handleTheme } from './utils/theme';
 import {
@@ -78,6 +89,9 @@ const props = defineProps({
 		default: undefined,
 	},
 });
+
+// Define emits
+const emit = defineEmits(['on-follow']);
 
 // Reactive state
 const mapContainer = ref(null);
@@ -182,8 +196,6 @@ const layers = computed(() => ({
 		maxZoom: Infinity,
 	},
 }));
-
-console.log({ layers });
 
 // Initialize map when component is mounted
 onMounted(() => {
@@ -499,7 +511,6 @@ function updateMap() {
 	// Add zoom controls
 	addZoomControls({
 		svg: svg.value,
-		width: width.value,
 		resetZoom: deps.resetZoom,
 	});
 
@@ -509,6 +520,74 @@ function updateMap() {
 	} catch (error) {
 		console.error('Error creating legend:', error);
 	}
+}
+
+// Handle follow event from sidebar
+function handleFollow(locationId) {
+	console.log('Follow location:', locationId);
+	// Emit event to parent component
+	emit('on-follow', locationId);
+}
+
+// Update active location stack from sidebar
+function updateActiveLocationStack(newStack) {
+	activeLocationStack.value = newStack;
+}
+
+// Handle zoom to location from sidebar
+function handleZoomToLocation(location) {
+	if (location.type === 'reset') {
+		// Reset zoom
+		const zoom = svg.value.__zoom__ || d3.zoom();
+		svg.value.transition().duration(750).call(zoom.transform, d3.zoomIdentity);
+	} else if (location.type === 'state') {
+		// Find the state in the GeoJSON
+		const stateName = location.data.name;
+		const stateFeature = statesGeoJSON.features.find(f => f.properties.NAME === stateName);
+		
+		if (stateFeature) {
+			zoomToFeature(stateFeature, 0.9);
+		}
+	} else if (location.type === 'county') {
+		// Find the county in the GeoJSON
+		const countyFips = location.fips;
+		const countyFeature = countiesGeoJSON.features.find(f => {
+			const fips = f.properties.STATE + f.properties.COUNTY;
+			return fips === countyFips;
+		});
+		
+		if (countyFeature) {
+			zoomToFeature(countyFeature, 0.5);
+		}
+	}
+}
+
+// Helper function to zoom to a feature
+function zoomToFeature(feature, scaleFactor) {
+	const bounds = path.value.bounds(feature);
+	const dx = bounds[1][0] - bounds[0][0];
+	const dy = bounds[1][1] - bounds[0][1];
+	const x = (bounds[0][0] + bounds[1][0]) / 2;
+	const y = (bounds[0][1] + bounds[1][1]) / 2;
+	
+	// Calculate appropriate zoom level
+	const scale = scaleFactor / Math.max(dx / width.value, dy / height.value);
+	
+	// Calculate offset for sidebar
+	const sidebarOffset = activeLocationStack.value.length > 0 ? 150 : 0;
+	const translate = [width.value / 2 - scale * x - sidebarOffset, height.value / 2 - scale * y];
+	
+	// Get the stored zoom behavior
+	const zoom = svg.value.__zoom__ || d3.zoom();
+	
+	// Animate zoom transition
+	svg.value
+		.transition()
+		.duration(750)
+		.call(
+			zoom.transform,
+			d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale),
+		);
 }
 
 // Clean up when component is unmounted

@@ -30,11 +30,6 @@ export function renderStateOverlay(container, deps) {
 			activeLocationStack[activeLocationStack.length - 1].data.state_iso,
 	);
 
-	console.debug({
-		activeState,
-		activeLocationStack: activeLocationStack,
-	});
-
 	if (!activeState) return;
 
 	// Remove any existing overlay first to prevent duplicates
